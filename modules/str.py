@@ -1,3 +1,6 @@
 def get_line(str, start):
 	ind = str.find('\n', start)
-	return str[start:ind]
+	if ind >= 0:
+		return str[start:ind]
+	else:
+		return str[start:]
