@@ -1,7 +1,7 @@
 import socket               # Import socket module
 
 s = socket.socket()         # Create a socket object
-host = "192.168.5.68"   # socket.gethostname() # Get local machine name, will not work remotely
+host = "10.0.2.101"   # socket.gethostname() # Get local machine name, will not work remotely
 port = 12345                # Reserve a port for your service.
 s.bind((host, port))        # Bind to the port
 
