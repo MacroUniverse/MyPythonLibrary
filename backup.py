@@ -1,3 +1,12 @@
+#! /usr/bin/python3
+
+# a very simple incremental backup utility
+# every subfolder `folder` in `src` will be backed up to `dest/folder.sync/folder.v???`
+# where `???` is version number `ver`
+# incremental backup will just move identical files from previous version, if any exist
+# each folder will have `sha1sum.txt` keeping the hash for every file inside
+# just follow the instructions for other cases ...
+
 # === params ===
 src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
 dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
