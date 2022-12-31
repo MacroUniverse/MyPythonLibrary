@@ -59,8 +59,8 @@ def hash_or_rehash_cwd(no_rehash=False):
 # === params ===
 src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
 dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
-ver = '2'
-amend_run = True
+ver = '0'
+amend_run = False
 # ==============
 
 os.chdir(src)
@@ -76,14 +76,6 @@ for folder in folders:
     dest1 = dest + '/' + folder + '.sync'
     dest2 = dest1 + '/' + folder_ver
     
-    # # === mode: check or backup? ===
-    # if os.path.exists(dest2):
-    #     print('----', '['+folder_ver+']', 'exists, entering check mode', '----')
-    #     mode = 'check'
-    # else:
-    #     print('----', '['+folder_ver+']', 'not found, entering backup mode', '----')
-    #     mode = 'backup'
-    
     # === check latest backup ===
     dest2_last = ''
     if os.path.exists(dest1):
@@ -91,12 +83,13 @@ for folder in folders:
         if backups:
             backups.sort()
             dest2_last = dest1 + '/' + backups[-1]
+            print('found previous backup [' + os.path.split(dest2_last)[1] + ']')
 
     # === check source folder ===
     print('---- checking', '['+folder+']', '----')
     os.chdir(folder)
     if (hash_or_rehash_cwd(amend_run)): # has change
-        print("please review sha1sum-new.txt and replace sha1sum.txt if everything is ok, then run again with [amend]!")
+        print("please review sha1sum-new.txt and replace sha1sum.txt if everything is ok, then run again with [amend_run]!")
         continue
     elif not amend_run and (dest2 != dest2_last):
         os.rename(dest2_last, dest2)
@@ -122,12 +115,13 @@ for folder in folders:
         continue
 
     # --- delta sync ---
-    print('---- found previous backup [' + os.path.split(dest2_last)[1] + '], checking... ----')    
+    print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----')    
     os.chdir(dest2_last)
     if (hash_or_rehash_cwd()):
         print("================> backup corrupted!!!")
         continue
 
+    print('---- starting delta sync ----')
     f = open("sha1sum.txt", "r")
     sha1_last = f.read().splitlines()
     f.close()
@@ -136,10 +130,14 @@ for folder in folders:
     sha1 = f.read().splitlines()
     f.close()
     
-    print('---- starting delta sync ----')
     for i in range(len(sha1)):
         hash = sha1[i][:40]
         path = sha1[i][43:]
+        # ensure dest path exist
+        tmp = os.path.split(dest2+path)[0]
+        if not os.path.exists(tmp):
+            os.makedirs(tmp)
+        # try to match a previous backup file
         match = False
         for j in range(len(sha1_last)):
             if sha1_last[j][:40] == hash:
@@ -149,10 +147,6 @@ for folder in folders:
                 match = True
                 break
         if not match:
-            try:
-                os.makedirs(os.path.split(dest2+path)[0])
-            except Exception:
-                pass
             shutil.copyfile(path[1:], dest2+path)
     
     shutil.copyfile('sha1sum.txt', dest2 + '/' + 'sha1sum.txt')
@@ -163,6 +157,4 @@ for folder in folders:
     
     print('------- debug: rehash backup folder ------')
     os.chdir(dest2)
-    tmp = no_rehash; no_rehash = False
     hash_or_rehash_cwd()
-    no_rehash = tmp
