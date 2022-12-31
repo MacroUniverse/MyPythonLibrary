@@ -63,6 +63,35 @@ def hash_or_rehash_cwd(no_rehash=False):
             print('no change or corruption!');
             return False
 
+def print_diff_cwd():
+    f = open('sha1sum.txt', 'r')
+    sha1 = f.read().splitlines(); f.close()
+    f = open('sha1sum-new.txt', 'r')
+    sha1_new = f.read().splitlines(); f.close()
+    i = 0; j = 0;
+    output = []
+    while 1:
+        if i == len(sha1):
+            for j in range(j, len(sha1_new)):
+                output.append(sha1_new[j][44:] + ' [new]')
+            break
+        elif j == len(sha1_new):
+            for i in range(i, len(sha1)):
+                output.append(sha1[i][44:] + ' [deleted]')
+            break
+        hash = int(sha1[i][:40], 16)
+        hash_new = int(sha1_new[j][:40], 16)
+        if hash == hash_new:
+            i += 1; j += 1
+        elif hash < hash_new:
+            output.append(sha1[i][44:] + ' [deleted]')
+            i += 1
+        else: # hash_new < hash
+            output.append(sha1_new[j][44:] + ' [new]')
+            j += 1
+    output.sort()
+    print('\n'.join(output))
+            
 os.chdir(src)
 
 amend_run = os.path.exists('backup.py_has_conflict_waiting_amend_run')
@@ -83,21 +112,25 @@ for folder in folders:
     dest2 = dest1 + '/' + folder_ver
     
     # === check latest backup ===
+    print('current backup [{}]'.format(folder_ver))
     dest2_last = ''
     if os.path.exists(dest1):
         backups = next(os.walk(dest1))[1]
-        if backups:
+        if backups: # found previous packup(s)
             backups = natsort.natsorted(backups)
             folder_ver_last = backups[-1]
             dest2_last = dest1 + '/' + folder_ver_last
-            print('found previous backup [' + folder_ver_last + ']')
-            print('')
+            print('previous backup [{}]'.format(folder_ver_last))
+        else: # no previous packup(s)
+            print('previous backup not found!')
+        print('')
 
     # === check source folder ===
     print('checking', '['+folder+']'); print('-'*40)
     os.chdir(src + '/' + folder)
-    if (hash_or_rehash_cwd(amend_run)): # has change
-        print('please review sha1sum-new.txt and replace sha1sum.txt if everything is ok, then run again!')
+    if (hash_or_rehash_cwd(amend_run)): # folder has change or corruption
+        print('please review changes then replace sha1sum.txt with sha1sum-new.txt')
+        print_diff_cwd();
         print('')
         need_review = True
         continue
@@ -130,7 +163,7 @@ for folder in folders:
             print('sha1sum.txt differs from source! please use a new version number and run again.')
             open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
             sys.exit(1)
-        print('sha1sum.txt maches!'); print('')
+        print('both sha1sum.txt maches!'); print('')
         continue
     
     # === do backup ===
