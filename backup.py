@@ -4,11 +4,6 @@ import sys
 import subprocess # for calling shell command
 import shutil # for copy file
 
-src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
-dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
-ver = '1'
-no_rehash = False
-
 # pipe won't work!
 def shell_cmd(*cmd):
     process = subprocess.Popen(list(cmd), stdout=subprocess.PIPE)
@@ -30,7 +25,7 @@ def sha1_cwd(fname=None):
     return output
 
 # return True if cwd has changed based on sha1sum.txt, then write sha1sum-new.txt
-def hash_or_rehash_cwd():
+def hash_or_rehash_cwd(no_rehash=False):
     if os.path.exists("sha1sum-new.txt"):
         return True
     if not os.path.exists("sha1sum.txt"):
@@ -61,7 +56,14 @@ def hash_or_rehash_cwd():
             print("no change or corruption!")
             return False
 
-os.chdir(src);
+# === params ===
+src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
+dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
+ver = '2'
+amend_run = True
+# ==============
+
+os.chdir(src)
 
 # === loop through all sub folders ===
 folders = next(os.walk('.'))[1];
@@ -81,13 +83,23 @@ for folder in folders:
     # else:
     #     print('----', '['+folder_ver+']', 'not found, entering backup mode', '----')
     #     mode = 'backup'
+    
+    # === check latest backup ===
+    dest2_last = ''
+    if os.path.exists(dest1):
+        backups = next(os.walk(dest1))[1]
+        if backups:
+            backups.sort()
+            dest2_last = dest1 + '/' + backups[-1]
 
     # === check source folder ===
     print('---- checking', '['+folder+']', '----')
     os.chdir(folder)
-    if (hash_or_rehash_cwd()):
-        print("please review sha1sum-new.txt and replace sha1sum.txt if everything is ok, then run again with [no_rehash]!")
+    if (hash_or_rehash_cwd(amend_run)): # has change
+        print("please review sha1sum-new.txt and replace sha1sum.txt if everything is ok, then run again with [amend]!")
         continue
+    elif not amend_run and (dest2 != dest2_last):
+        os.rename(dest2_last, dest2)
     print('done!'); print(''); print('')
 
     # === check backup folder if exist ===
@@ -99,12 +111,10 @@ for folder in folders:
         continue
     
     # === do backup ===
-    
-    # --- check latest backup ---
-    os.chdir(dest1)
-    backups = next(os.walk('.'))[1]
-    if not backups:
-        print('---- no previous backup, copying ----')
+
+    # --- direct copy ---
+    if dest2_last == '':
+        print('---- no previous backup, copying... ----')
         os.chdir(src)
         os.makedirs(dest2)
         print(shell_cmd('cp', '-av', folder + '/.', dest2));
@@ -112,10 +122,12 @@ for folder in folders:
         continue
 
     # --- delta sync ---
-    backups.sort()
-    dest2_last = backups[-1]
-    print('---- found previous backup:', dest2_last, 'delta sync ----')    
+    print('---- found previous backup [' + os.path.split(dest2_last)[1] + '], checking... ----')    
     os.chdir(dest2_last)
+    if (hash_or_rehash_cwd()):
+        print("================> backup corrupted!!!")
+        continue
+
     f = open("sha1sum.txt", "r")
     sha1_last = f.read().splitlines()
     f.close()
@@ -138,14 +150,16 @@ for folder in folders:
                 break
         if not match:
             try:
-                os.mkdirs(os.path.split('dest2+path')[1])
+                os.makedirs(os.path.split(dest2+path)[0])
             except Exception:
                 pass
-            shutil.copyfile(path, dest2+path)
+            shutil.copyfile(path[1:], dest2+path)
     
-    f = open(dest2_last "/sha1sum.txt", "w")
+    shutil.copyfile('sha1sum.txt', dest2 + '/' + 'sha1sum.txt')
+    f = open(dest2_last+"/sha1sum.txt", "w")
     f.write('\n'.join(sha1_last))
     f.close()
+    
     
     print('------- debug: rehash backup folder ------')
     os.chdir(dest2)
