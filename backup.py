@@ -8,14 +8,15 @@
 # just follow the instructions for other cases ...
 
 # === params ===
-src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
-dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
-ver = '20221231'
+src = '/mnt/d/'
+dest = '/mnt/q/'
+ver = '0'
+select = [] # only backup these sub-dirs
 # ==============
 
 import os
 import sys
-# import hashlib # for sha1sum
+import hashlib # for sha1sum
 import subprocess # for calling shell command
 import shutil # for copy file
 import natsort # natural sort folder name
@@ -29,16 +30,55 @@ def shell_cmd(*cmd):
         sys.exit(1)
     return output.decode()
 
-# hash every file in current directory and sort to a list
+# hash every file in current directory and sort hash to a list
+# sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
 # write to file if fname provided
-def sha1_cwd(fname=None):
-    output = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines();
-    output.sort()
+# doesn't include `fname` itself
+def sha1_cwd(fname=None, exclude='sha1sum.txt'):
+    flist = file_list_r('./')
+    sha1 = []
+    if fname != None:
+        exclude = fname
+        Nname = len(exclude)
+        for f in flist:
+            if f[-exclude:] == exclude:
+                continue
+            line = sha1file(f) + '  ' + f
+            print(line)
+            sha1.append(line)
+        sha1.sort()
+        f = open(fname, 'w')
+        f.write('\n'.join(sha1) + '\n')
+        f.close()
+    else: # fname == None
+        Nname = len(exclude)
+        for f in flist:
+            if f[-Nname:] == exclude:
+                continue
+            line = sha1file(f) + '  ' + f
+            print(line)
+            sha1.append(line)
+        sha1.sort()
+    return sha1
+
+# sha1_cwd() using bash command
+def sha1_cwd_bash(fname=None, exclude='sha1sum.txt'):
+    print('deprecated! use sha1_cwd instead!'); sys.exit(1)
+    lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
+    lines.sort()
+    if fname != None:
+        exclude = fname
+    Nname = len(exclude); i = 0
+    while i < len(lines):
+        if lines[i][-Nname:] == exclude:
+            del lines[i]
+            i -= 1
+        i += 1
     if fname != None:
         f = open('sha1sum.txt', 'w')
-        f.write('\n'.join(output))
+        f.write('\n'.join(lines))
         f.close()
-    return output
+    return lines
 
 # return True if cwd has changed based on sha1sum.txt, then write sha1sum-new.txt
 def hash_or_rehash_cwd(no_rehash=False):
@@ -52,15 +92,10 @@ def hash_or_rehash_cwd(no_rehash=False):
         print("sha1sum.txt exist! [no_rehash] assuming it's up to date")
     else: # sha1sum.txt exist
         print('sha1sum.txt exist! rehashing...')
-        sha1_new = sha1_cwd();
-        # delete sha1sum.txt itself
-        for i in range(len(sha1_new)):
-            if sha1_new[i][44:] == 'sha1sum.txt':
-                del sha1_new[i]
-                break
-        sha1_new = '\n'.join(sha1_new);
+        sha1_new = sha1_cwd()
+        sha1_new = '\n'.join(sha1_new) + '\n'
         f = open('sha1sum.txt', 'r')
-        sha1 = f.read();
+        sha1 = f.read()
         f.close()
         if sha1_new != sha1:
             f = open('sha1sum-new.txt', 'w')
@@ -69,7 +104,7 @@ def hash_or_rehash_cwd(no_rehash=False):
             print('sha1sum.txt changed, compare to sha1sum-new.txt manually!')
             return True
         else:
-            print('no change or corruption!');
+            print('no change or corruption!')
             return False
 
 def print_diff_cwd():
@@ -77,7 +112,7 @@ def print_diff_cwd():
     sha1 = f.read().splitlines(); f.close()
     f = open('sha1sum-new.txt', 'r')
     sha1_new = f.read().splitlines(); f.close()
-    i = 0; j = 0;
+    i = 0; j = 0
     output = []
     while 1:
         if i == len(sha1):
@@ -100,7 +135,37 @@ def print_diff_cwd():
             j += 1
     output.sort()
     print('\n'.join(output))
-            
+
+# sha1sum of a file
+# use 1MiB buffer size fot big file
+def sha1file(fname, buff_sz=1024*1024):
+    if os.path.getsize(fname) <= buff_sz:
+        f = open(fname, 'rb')
+        data = f.read()
+        sha1 = hashlib.sha1(data)
+    else:
+        sha1 = hashlib.sha1()
+        with open(fname, 'rb') as f:
+            while True:
+                data = f.read(buff_sz)
+                if not data:
+                    break
+                sha1.update(data)
+    return sha1.hexdigest()
+
+# retur a list all file paths recursively
+# paths start with `path` (relative or absolute)
+def file_list_r(path):
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(path):
+        for file in f:
+            files.append(os.path.join(r, file))
+    return files
+
+
+## =========== main program ==============
+
 os.chdir(src)
 
 amend_run = os.path.exists('backup.py_has_conflict_waiting_amend_run')
@@ -108,15 +173,23 @@ if amend_run:
     print('running in amend mode!'); print('')
     os.remove('backup.py_has_conflict_waiting_amend_run')
     
-need_review = False;
+need_review = False
 
 # === loop through all sub folders ===
-folders = next(os.walk('.'))[1];
+if select:
+    folders = select
+else:
+    folders = next(os.walk('.'))[1]
+    folders.sort()
+
 for folder in folders:
+    if not os.path.exists(folder + '/sha1sum.txt'):
+        continue
+
     print(''); print('='*40)
     print(folder)
     print('='*40); print('')
-    folder_ver = folder + '.v' + ver;
+    folder_ver = folder + '.v' + ver
     dest1 = dest + '/' + folder + '.sync'
     dest2 = dest1 + '/' + folder_ver
     
@@ -139,7 +212,7 @@ for folder in folders:
     os.chdir(src + '/' + folder)
     if (hash_or_rehash_cwd(amend_run)): # folder has change or corruption
         print('please review changes then replace sha1sum.txt with sha1sum-new.txt')
-        print_diff_cwd();
+        print_diff_cwd()
         print('')
         need_review = True
         continue
@@ -187,8 +260,8 @@ for folder in folders:
         print('---- no previous backup, copying... ----')
         os.chdir(src)
         os.makedirs(dest2)
-        print(shell_cmd('cp', '-av', folder + '/.', dest2));
-        print('');
+        print(shell_cmd('cp', '-av', folder + '/.', dest2))
+        print('')
         continue
 
     # --- delta sync ---
