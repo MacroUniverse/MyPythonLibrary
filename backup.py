@@ -1,7 +1,7 @@
 # === params ===
 src = '/home/addis/Desktop/py-backup-test (copy)/source-drive'
 dest = '/home/addis/Desktop/py-backup-test (copy)/backup-drive'
-ver = '2'
+ver = '20221231'
 # ==============
 
 import os
@@ -154,12 +154,17 @@ for folder in folders:
         os.chdir(dest2)
         print('checking ['+folder_ver+']'); print('-'*40)
         if hash_or_rehash_cwd():
-            print('================> backup corrupted!!!')
+            print('================> backup corrupted! should not happen!')
+            print('TODO: show the change!'); print('')
+            continue
+        print('')
+        # check sha1sum.txt between src and dest2
         f = open(dest2 + '/sha1sum.txt', 'r')
         sha1_dest = f.read(); f.close()
         f = open(src + '/' + folder + '/sha1sum.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
+            print('='*40)
             print('sha1sum.txt differs from source! please use a new version number and run again.')
             open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
             sys.exit(1)
@@ -181,8 +186,10 @@ for folder in folders:
     print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----')    
     os.chdir(dest2_last)
     if (hash_or_rehash_cwd()):
-        print('================> backup corrupted!!!')
+        print('================> backup corrupted! should not happen!')
+        print('TODO: show the change!'); print('')
         continue
+    print('')
 
     print('---- starting delta sync ----')
     f = open('sha1sum.txt', 'r')
@@ -192,7 +199,7 @@ for folder in folders:
     f = open('sha1sum.txt', 'r')
     sha1 = f.read().splitlines()
     f.close()
-    
+    rename_count = 0
     for i in range(len(sha1)):
         hash = sha1[i][:40]
         path = sha1[i][43:]
@@ -206,22 +213,29 @@ for folder in folders:
             if sha1_last[j][:40] == hash:
                 path_last = sha1_last[j][43:]
                 os.rename(dest2_last+path_last, dest2+path)
+                rename_count += 1
                 del sha1_last[j]
                 match = True
                 break
         if not match:
             shutil.copyfile(path[1:], dest2+path)
     
+    # update previous sha1sum.txt
     shutil.copyfile('sha1sum.txt', dest2 + '/' + 'sha1sum.txt')
     f = open(dest2_last+'/sha1sum.txt', 'w')
     f.write('\n'.join(sha1_last))
     f.close()
+    
+    # delete empty folders
+    shell_cmd('find', dest2_last, '-empty', '-type', 'd', '-delete')
+    
+    print('total files:', len(sha1))
+    print('moved from previous version:', rename_count)
     print('')
     
-    
-    print('------- debug: rehash backup folder ------')
+    print('------- DEBUG: rehash backup folder ------')
     os.chdir(dest2)
-    hash_or_rehash_cwd()
+    hash_or_rehash_cwd(); print('')
 
 if need_review:
     print('============ review & rerun needed =============')
