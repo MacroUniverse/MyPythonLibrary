@@ -8,11 +8,11 @@
 # just follow the instructions for other cases ...
 
 # === params ===
-src = '/mnt/d/'
+src = '/mnt/p/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
-start = 'VirtualBox-img' # skip until this folder
+start = '' # skip until this folder
 # ==============
 
 import os
@@ -66,6 +66,7 @@ def sha1_cwd(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-dif
     return sha1
 
 # return True if cwd has changed based on sha1sum.txt, then write sha1sum-new.txt
+# if sha1sum.txt is empty, will update automatically, and return False
 def hash_or_rehash_cwd(no_rehash=False):
     if os.path.exists('sha1sum-new.txt'):
         return True
@@ -82,7 +83,12 @@ def hash_or_rehash_cwd(no_rehash=False):
         f = open('sha1sum.txt', 'r')
         sha1 = f.read()
         f.close()
-        if sha1_new != sha1:
+        if os.stat('sha1sum.txt').st_size == 0: # sha1sum.txt is empty
+            print('sha1sum.txt is empty, update automatically...', flush=True)
+            f = open('sha1sum.txt', 'w')
+            f.write(sha1_new); f.close()
+            return False
+        elif sha1_new != sha1:
             f = open('sha1sum-new.txt', 'w')
             f.write(sha1_new)
             f.close()
@@ -234,6 +240,7 @@ print(''); print('')
 Nfolder = len(folders)
 
 # skip until folder = start
+ind0 = 0
 if start:
     for ind0 in range(Nfolder):
         if folders[ind0] == start:
@@ -269,11 +276,6 @@ for ind in range(ind0, Nfolder):
     # === check source folder ===
     print('checking', '['+folder+']'); print('-'*40, flush=True)
     os.chdir(src + '/' + folder)
-
-    # check for empty sha1sum.txt
-    if os.stat('sha1sum.txt').st_size == 0:
-        print('sha1sum.txt was empty, rehashing...', flush=True)
-        os.remove('sha1sum.txt')
 
     if (hash_or_rehash_cwd(amend_run)):
         # `folder` has change or corruption
