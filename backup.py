@@ -12,7 +12,7 @@ src = '/mnt/d/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
-start = 'Uwe_Recording' # resume where you were
+start = 'VirtualBox-img' # skip until this folder
 # ==============
 
 import os
@@ -222,20 +222,22 @@ else:
     folders.sort()
 
 # get folders with sha1sum.txt inside
-print('folders to backup:'); i = 0
+print('folders to backup:'); print(''); i = 0
 while i < len(folders):
     folder = folders[i]
     if os.path.exists(folder + '/sha1sum.txt'):
-        print(folder); i += 1
+        print('[{}] {}'.format(i+1, folder))
+        i += 1
     else:
         del folders[i]
 print(''); print('')
 Nfolder = len(folders)
 
 # skip until folder = start
-for ind0 in range(Nfolder):
-    if folders[ind0] == start:
-        break
+if start:
+    for ind0 in range(Nfolder):
+        if folders[ind0] == start:
+            break
 
 for ind in range(ind0, Nfolder):
     os.chdir(src)
