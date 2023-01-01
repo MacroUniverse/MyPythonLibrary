@@ -12,6 +12,7 @@ src = '/mnt/d/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
+start = 'Uwe_Recording' # resume where you were
 # ==============
 
 import os
@@ -19,16 +20,17 @@ import sys
 import hashlib # for sha1sum
 import subprocess # for calling shell command
 import shutil # for copy file
+import errno
 import natsort # natural sort folder name
 
-# pipe won't work!
-def shell_cmd(*cmd):
-    process = subprocess.Popen(list(cmd), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-    if error != None:
-        print(error)
-        sys.exit(1)
-    return output.decode()
+# copy folder recursively
+def copy_folder(src, dst):
+    try:
+        shutil.copytree(src, dst)
+    except OSError as exc: # python >2.5
+        if exc.errno in (errno.ENOTDIR, errno.EINVAL):
+            shutil.copy(src, dst)
+        else: raise
 
 # hash every file in current directory and sort hash to a list
 # sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
@@ -37,47 +39,31 @@ def shell_cmd(*cmd):
 def sha1_cwd(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
     flist = file_list_r('./')
     sha1 = []
+    Nf = len(flist)
     if fname != None:
         exclude.add(fname)
-        for f in flist:
+        for i in range(Nf):
+            f = flist[i]
+            line = sha1file(f) + '  ' + f
+            print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
             if os.path.split(f)[1] in exclude:
                 continue
-            line = sha1file(f) + '  ' + f
-            print(line[44:] + '            ||\r', end="", flush=True)
             sha1.append(line)
         sha1.sort()
         f = open(fname, 'w')
         f.write('\n'.join(sha1) + '\n')
         f.close()
     else: # fname == None
-        for f in flist:
+        for i in range(Nf):
+            f = flist[i]
+            line = sha1file(f) + '  ' + f
+            print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
             if os.path.split(f)[1] in exclude:
                 continue
-            line = sha1file(f) + '  ' + f
-            print(line[44:] + '            ||\r', end="", flush=True)
             sha1.append(line)
         sha1.sort()
     print('', flush=True)
     return sha1
-
-# sha1_cwd() using bash command
-def sha1_cwd_bash(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
-    print('deprecated! use sha1_cwd instead!'); sys.exit(1)
-    lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
-    lines.sort()
-    if fname != None:
-        exclude.add(fname)
-    i = 0
-    while i < len(lines):
-        if os.path.split(lines)[1] in exclude:
-            del lines[i]
-            i -= 1
-        i += 1
-    if fname != None:
-        f = open('sha1sum.txt', 'w')
-        f.write('\n'.join(lines))
-        f.close()
-    return lines
 
 # return True if cwd has changed based on sha1sum.txt, then write sha1sum-new.txt
 def hash_or_rehash_cwd(no_rehash=False):
@@ -162,6 +148,24 @@ def file_list_r(path):
             files.append(os.path.join(r, file))
     return files
 
+# remove empty folders recursively
+def rm_empty_folders(path, removeRoot=True):
+    'Function to remove empty folders'
+    if not os.path.isdir(path):
+        return
+    # remove empty subfolders
+    files = os.listdir(path)
+    if len(files):
+        for f in files:
+            fullpath = os.path.join(path, f)
+            if os.path.isdir(fullpath):
+                rm_empty_folders(fullpath)
+    # if folder empty, delete it
+    files = os.listdir(path)
+    if len(files) == 0 and removeRoot:
+        # print("Removing empty folder:", path)
+        os.rmdir(path)
+
 
 ## =========== main program ==============
 
@@ -174,20 +178,73 @@ if amend_run:
     
 need_review = False
 
+# recycled code
+'''
+# pipe won't work!
+def shell_cmd(*cmd):
+    process = subprocess.Popen(list(cmd), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+    if error != None:
+        print(error)
+        sys.exit(1)
+    return output.decode()
+'''
+
+'''
+# sha1_cwd() using bash command
+def sha1_cwd_bash(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
+    print('deprecated! use sha1_cwd instead!'); sys.exit(1)
+    lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
+    lines.sort()
+    if fname != None:
+        exclude.add(fname)
+    i = 0
+    while i < len(lines):
+        if os.path.split(lines)[1] in exclude:
+            del lines[i]
+            i -= 1
+        i += 1
+    if fname != None:
+        f = open('sha1sum.txt', 'w')
+        f.write('\n'.join(lines))
+        f.close()
+    return lines
+'''
+
 # === loop through all sub folders ===
+
+os.chdir(src)
+
 if select:
     folders = select
 else:
     folders = next(os.walk('.'))[1]
     folders.sort()
 
-for folder in folders:
+# get folders with sha1sum.txt inside
+print('folders to backup:'); i = 0
+while i < len(folders):
+    folder = folders[i]
+    if os.path.exists(folder + '/sha1sum.txt'):
+        print(folder); i += 1
+    else:
+        del folders[i]
+print(''); print('')
+Nfolder = len(folders)
+
+# skip until folder = start
+for ind0 in range(Nfolder):
+    if folders[ind0] == start:
+        break
+
+for ind in range(ind0, Nfolder):
     os.chdir(src)
+    folder = folders[ind]
     if not os.path.exists(folder + '/sha1sum.txt'):
         continue
 
     print(''); print('='*40)
-    print(folder)
+    print('[{}/{}] {}'.format(ind+1, Nfolder, folder))
     print('='*40); print('', flush=True)
     folder_ver = folder + '.v' + ver
     dest1 = dest + '/' + folder + '.sync'
@@ -249,7 +306,7 @@ for folder in folders:
             print('================> backup corrupted! should not happen!')
             print('TODO: show the change!'); print('', flush=True)
             continue
-        print('', flush=True)
+
         # check sha1sum.txt between src and dest2
         f = open(dest2 + '/sha1sum.txt', 'r')
         sha1_dest = f.read(); f.close()
@@ -269,8 +326,9 @@ for folder in folders:
     if dest2_last == '':
         print('---- no previous backup, copying... ----', flush=True)
         os.chdir(src)
-        os.makedirs(dest2)
-        shell_cmd('cp', '-a', folder + '/.', dest2)
+        # os.makedirs(dest2)
+        # shell_cmd('cp', '-a', folder + '/.', dest2)
+        copy_folder(folder, dest2)
         print('', flush=True)
         continue
 
@@ -319,7 +377,8 @@ for folder in folders:
     f.close()
     
     # delete empty folders
-    shell_cmd('find', dest2_last, '-empty', '-type', 'd', '-delete')
+    # shell_cmd('find', dest2_last, '-empty', '-type', 'd', '-delete')
+    rm_empty_folders(dest2_last, False)
     
     print('total files:', len(sha1))
     print('moved from previous version:', rename_count)
