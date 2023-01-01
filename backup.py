@@ -6,14 +6,16 @@
 # incremental backup will just move identical files from previous version, if any exist
 # each folder will have `sha1sum.txt` keeping the hash for every file inside
 # just follow the instructions for other cases ...
+# you can manually generate sha1sum.txt with `find . -type f -exec sha1sum {} \; | sort > sha1sum-new.txt`
 
-# === params ===
-src = '/mnt/p/'
+# === params ===========================
+src = '/mnt/d/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
-start = '' # skip until this folder
-# ==============
+start = '电影' # skip until this folder
+ignore = ['数学物理考研试卷']
+# =====================================
 
 import os
 import sys
@@ -30,7 +32,10 @@ def copy_folder(src, dst):
     except OSError as exc: # python >2.5
         if exc.errno in (errno.ENOTDIR, errno.EINVAL):
             shutil.copy(src, dst)
-        else: raise
+        else:
+            # raise
+            print('copy_folder() failed! you might not have permission!')
+            exit(1)
 
 # hash every file in current directory and sort hash to a list
 # sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
@@ -98,6 +103,7 @@ def hash_or_rehash_cwd(no_rehash=False):
             print('no change or corruption!', flush=True)
             return False
 
+# show difference between sha1sum-new.txt and sha1sum.txt of current folder
 def diff_cwd():
     f = open('sha1sum.txt', 'r')
     sha1 = f.read().splitlines(); f.close()
@@ -181,8 +187,6 @@ amend_run = os.path.exists('backup.py_has_conflict_waiting_amend_run')
 if amend_run:
     print('running in amend mode!'); print('', flush=True)
     os.remove('backup.py_has_conflict_waiting_amend_run')
-    
-need_review = False
 
 # recycled code
 '''
@@ -249,12 +253,15 @@ if start:
 for ind in range(ind0, Nfolder):
     os.chdir(src)
     folder = folders[ind]
-    if not os.path.exists(folder + '/sha1sum.txt'):
-        continue
 
     print(''); print('='*40)
     print('[{}/{}] {}'.format(ind+1, Nfolder, folder))
     print('='*40); print('', flush=True)
+
+    if folder in ignore:
+        print('folder ignored by `ignore` param.')
+        continue
+
     folder_ver = folder + '.v' + ver
     dest1 = dest + '/' + folder + '.sync'
     dest2 = dest1 + '/' + folder_ver
@@ -280,9 +287,9 @@ for ind in range(ind0, Nfolder):
     if (hash_or_rehash_cwd(amend_run)):
         # `folder` has change or corruption
         print('please review changes in [sha1sum-diff.txt] then replace sha1sum.txt with sha1sum-new.txt', flush=True)
+        open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
         f = open('sha1sum-diff.txt', 'w')
         f.write(diff_cwd()); f.close()
-        need_review = True
         continue
     elif not amend_run and dest2_last and (dest2 != dest2_last):
         # `folder` has no change or corruption
@@ -293,9 +300,7 @@ for ind in range(ind0, Nfolder):
         f = open(src + '/' + folder + '/sha1sum.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
-            print('sha1sum.txt differs! this is unexpected!')
-            print('looks like you changed file and updated sha1sum.txt in `folder`, or deleted the latest backup.')
-            print("I'll try to use delta copying..."); print('', flush=True)
+            print('sha1sum.txt differs, cannot rename!'); print('', flush=True)
         else:
             os.rename(dest2_last, dest2)
             print('', flush=True)
@@ -306,9 +311,14 @@ for ind in range(ind0, Nfolder):
     if os.path.exists(dest2):
         os.chdir(dest2)
         print('checking ['+folder_ver+']'); print('-'*40, flush=True)
-        if not os.path.exists('sha1sum.txt') or hash_or_rehash_cwd():
-            print('================> backup corrupted! should not happen!')
-            print('TODO: show the change!'); print('', flush=True)
+        if not os.path.exists('sha1sum.txt'):
+            print('sha1sum.txt not found, unfinished backup?')
+            hash_or_rehash_cwd()
+        elif hash_or_rehash_cwd():
+            print('corrupted backup files?')
+            f = open('sha1sum-diff.txt', 'w')
+            f.write(diff_cwd()); f.close()
+            print('', flush=True)
             continue
 
         # check sha1sum.txt between src and dest2
@@ -320,13 +330,13 @@ for ind in range(ind0, Nfolder):
             print('='*40)
             print('sha1sum.txt differs from source! please use a new version number and run again.')
             open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
-            sys.exit(1)
+            continue
         print('both sha1sum.txt maches!'); print('', flush=True)
         continue
     
-    # === do backup ===
+    # === backup folder doesn't exist, backup ===
 
-    # --- direct copy ---
+    # --- no previous backup, direct copy ---
     if dest2_last == '':
         print('---- no previous backup, copying... ----', flush=True)
         os.chdir(src)
@@ -396,8 +406,7 @@ for ind in range(ind0, Nfolder):
     os.chdir(dest2)
     hash_or_rehash_cwd(); print('', flush=True)
 
-if need_review:
+if os.path.exists(src + '/backup.py_has_conflict_waiting_amend_run'):
     print('============ review & rerun needed =============')
-    open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
 else:
     print('=============== ALL DONE ===============')
