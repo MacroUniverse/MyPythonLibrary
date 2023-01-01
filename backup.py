@@ -353,7 +353,8 @@ for ind in range(ind0, Nfolder):
     f = open('sha1sum.txt', 'r')
     sha1 = f.read().splitlines()
     f.close()
-    rename_count = 0
+    rename_count = 0; i = j = 0
+    # assuming both sha1_last and sha1 and sorted
     for i in range(len(sha1)):
         hash = sha1[i][:40]
         path = sha1[i][43:]
@@ -363,15 +364,18 @@ for ind in range(ind0, Nfolder):
             os.makedirs(tmp)
         # try to match a previous backup file
         match = False
-        for j in range(len(sha1_last)):
-            if sha1_last[j][:40] == hash:
+        while j < len(sha1_last):
+            hash_last = sha1_last[j][:40]
+            if hash_last > hash:
+                break
+            elif hash_last == hash:
                 path_last = sha1_last[j][43:]
                 os.rename(dest2_last+path_last, dest2+path)
-                rename_count += 1
+                rename_count += 1; match = True
                 del sha1_last[j]
-                match = True
                 break
-        if not match:
+            j += 1
+        if not match: # no match, just copy
             shutil.copyfile(path[1:], dest2+path)
     
     # update previous sha1sum.txt
