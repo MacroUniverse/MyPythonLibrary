@@ -8,12 +8,14 @@
 # just follow the instructions for other cases ...
 # you can manually generate sha1sum.txt with `find . -type f -exec sha1sum {} \; | sort > sha1sum-new.txt`
 
+# TODO: sha1sum.txt also record file size and modification date, and lazy mode can use those to tell if file has been updated, only rehash all files when told to
+
 # === params ===========================
 src = '/mnt/d/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
-start = '电影' # skip until this folder
+start = '' # skip until this folder
 ignore = ['数学物理考研试卷']
 # =====================================
 
@@ -36,6 +38,12 @@ def copy_folder(src, dst):
             # raise
             print('copy_folder() failed! you might not have permission!')
             exit(1)
+
+# # get a list of files and modified date and size of current directory
+# def size_time_cwd(exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
+#     flist = file_list_r('./')
+#     time
+
 
 # hash every file in current directory and sort hash to a list
 # sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
