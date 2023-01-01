@@ -34,43 +34,42 @@ def shell_cmd(*cmd):
 # sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
 # write to file if fname provided
 # doesn't include `fname` itself
-def sha1_cwd(fname=None, exclude='sha1sum.txt'):
+def sha1_cwd(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
     flist = file_list_r('./')
     sha1 = []
     if fname != None:
-        exclude = fname
-        Nname = len(exclude)
+        exclude.add(fname)
         for f in flist:
-            if f[-exclude:] == exclude:
+            if os.path.split(f)[1] in exclude:
                 continue
             line = sha1file(f) + '  ' + f
-            print(line)
+            print(line[44:] + '            ||\r', end="", flush=True)
             sha1.append(line)
         sha1.sort()
         f = open(fname, 'w')
         f.write('\n'.join(sha1) + '\n')
         f.close()
     else: # fname == None
-        Nname = len(exclude)
         for f in flist:
-            if f[-Nname:] == exclude:
+            if os.path.split(f)[1] in exclude:
                 continue
             line = sha1file(f) + '  ' + f
-            print(line)
+            print(line[44:] + '            ||\r', end="", flush=True)
             sha1.append(line)
         sha1.sort()
+    print('', flush=True)
     return sha1
 
 # sha1_cwd() using bash command
-def sha1_cwd_bash(fname=None, exclude='sha1sum.txt'):
+def sha1_cwd_bash(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
     print('deprecated! use sha1_cwd instead!'); sys.exit(1)
     lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
     lines.sort()
     if fname != None:
-        exclude = fname
-    Nname = len(exclude); i = 0
+        exclude.add(fname)
+    i = 0
     while i < len(lines):
-        if lines[i][-Nname:] == exclude:
+        if os.path.split(lines)[1] in exclude:
             del lines[i]
             i -= 1
         i += 1
@@ -85,13 +84,13 @@ def hash_or_rehash_cwd(no_rehash=False):
     if os.path.exists('sha1sum-new.txt'):
         return True
     if not os.path.exists('sha1sum.txt'):
-        print('sha1sum.txt or sha1sum-new.txt not found, hasing...')
+        print('sha1sum.txt or sha1sum-new.txt not found, hasing...', flush=True)
         sha1_cwd('sha1sum.txt')
         return False
     elif no_rehash: # sha1sum.txt exist
-        print("sha1sum.txt exist! [no_rehash] assuming it's up to date")
+        print("sha1sum.txt exist! [no_rehash] assuming it's up to date", flush=True)
     else: # sha1sum.txt exist
-        print('sha1sum.txt exist! rehashing...')
+        print('sha1sum.txt exist! rehashing...', flush=True)
         sha1_new = sha1_cwd()
         sha1_new = '\n'.join(sha1_new) + '\n'
         f = open('sha1sum.txt', 'r')
@@ -101,13 +100,13 @@ def hash_or_rehash_cwd(no_rehash=False):
             f = open('sha1sum-new.txt', 'w')
             f.write(sha1_new)
             f.close()
-            print('sha1sum.txt changed, compare to sha1sum-new.txt manually!')
+            print('sha1sum.txt changed, compare to sha1sum-new.txt manually!', flush=True)
             return True
         else:
-            print('no change or corruption!')
+            print('no change or corruption!', flush=True)
             return False
 
-def print_diff_cwd():
+def diff_cwd():
     f = open('sha1sum.txt', 'r')
     sha1 = f.read().splitlines(); f.close()
     f = open('sha1sum-new.txt', 'r')
@@ -134,7 +133,7 @@ def print_diff_cwd():
             output.append(sha1_new[j][44:] + ' [new]')
             j += 1
     output.sort()
-    print('\n'.join(output))
+    return ('\n'.join(output))
 
 # sha1sum of a file
 # use 1MiB buffer size fot big file
@@ -170,7 +169,7 @@ os.chdir(src)
 
 amend_run = os.path.exists('backup.py_has_conflict_waiting_amend_run')
 if amend_run:
-    print('running in amend mode!'); print('')
+    print('running in amend mode!'); print('', flush=True)
     os.remove('backup.py_has_conflict_waiting_amend_run')
     
 need_review = False
@@ -183,18 +182,19 @@ else:
     folders.sort()
 
 for folder in folders:
+    os.chdir(src)
     if not os.path.exists(folder + '/sha1sum.txt'):
         continue
 
     print(''); print('='*40)
     print(folder)
-    print('='*40); print('')
+    print('='*40); print('', flush=True)
     folder_ver = folder + '.v' + ver
     dest1 = dest + '/' + folder + '.sync'
     dest2 = dest1 + '/' + folder_ver
     
     # === check latest backup ===
-    print('current backup [{}]'.format(folder_ver))
+    print('current backup [{}]'.format(folder_ver), flush=True)
     dest2_last = ''
     if os.path.exists(dest1):
         backups = next(os.walk(dest1))[1]
@@ -205,41 +205,51 @@ for folder in folders:
             print('previous backup [{}]'.format(folder_ver_last))
         else: # no previous packup(s)
             print('previous backup not found!')
-        print('')
+        print('', flush=True)
 
     # === check source folder ===
-    print('checking', '['+folder+']'); print('-'*40)
+    print('checking', '['+folder+']'); print('-'*40, flush=True)
     os.chdir(src + '/' + folder)
-    if (hash_or_rehash_cwd(amend_run)): # folder has change or corruption
-        print('please review changes then replace sha1sum.txt with sha1sum-new.txt')
-        print_diff_cwd()
-        print('')
+
+    # check for empty sha1sum.txt
+    if os.stat('sha1sum.txt').st_size == 0:
+        print('sha1sum.txt was empty, rehashing...', flush=True)
+        os.remove('sha1sum.txt')
+
+    if (hash_or_rehash_cwd(amend_run)):
+        # `folder` has change or corruption
+        print('please review changes in [sha1sum-diff.txt] then replace sha1sum.txt with sha1sum-new.txt', flush=True)
+        f = open('sha1sum-diff.txt', 'w')
+        f.write(diff_cwd()); f.close()
         need_review = True
         continue
     elif not amend_run and dest2_last and (dest2 != dest2_last):
-        print('renaming [{}] to [{}]...'.format(folder_ver_last, folder_ver))
-        print('-'*40)
+        # `folder` has no change or corruption
+        print('can we can renaming [{}] to [{}] ?'.format(folder_ver_last, folder_ver))
+        print('-'*40, flush=True)
         f = open(dest2_last + '/sha1sum.txt', 'r')
         sha1_dest = f.read(); f.close()
         f = open(src + '/' + folder + '/sha1sum.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
             print('sha1sum.txt differs! this is unexpected!')
-            sys.error(1)
-        os.rename(dest2_last, dest2)
-        print('')
+            print('looks like you changed file and updated sha1sum.txt in `folder`, or deleted the latest backup.')
+            print("I'll try to use delta copying..."); print('', flush=True)
+        else:
+            os.rename(dest2_last, dest2)
+            print('', flush=True)
     else:
-        print('')
+        print('', flush=True)
 
     # === check backup folder (if exist) ===
     if os.path.exists(dest2):
         os.chdir(dest2)
-        print('checking ['+folder_ver+']'); print('-'*40)
-        if hash_or_rehash_cwd():
+        print('checking ['+folder_ver+']'); print('-'*40, flush=True)
+        if not os.path.exists('sha1sum.txt') or hash_or_rehash_cwd():
             print('================> backup corrupted! should not happen!')
-            print('TODO: show the change!'); print('')
+            print('TODO: show the change!'); print('', flush=True)
             continue
-        print('')
+        print('', flush=True)
         # check sha1sum.txt between src and dest2
         f = open(dest2 + '/sha1sum.txt', 'r')
         sha1_dest = f.read(); f.close()
@@ -250,30 +260,30 @@ for folder in folders:
             print('sha1sum.txt differs from source! please use a new version number and run again.')
             open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
             sys.exit(1)
-        print('both sha1sum.txt maches!'); print('')
+        print('both sha1sum.txt maches!'); print('', flush=True)
         continue
     
     # === do backup ===
 
     # --- direct copy ---
     if dest2_last == '':
-        print('---- no previous backup, copying... ----')
+        print('---- no previous backup, copying... ----', flush=True)
         os.chdir(src)
         os.makedirs(dest2)
-        print(shell_cmd('cp', '-av', folder + '/.', dest2))
-        print('')
+        shell_cmd('cp', '-a', folder + '/.', dest2)
+        print('', flush=True)
         continue
 
     # --- delta sync ---
-    print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----')    
+    print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----', flush=True)    
     os.chdir(dest2_last)
     if (hash_or_rehash_cwd()):
         print('================> backup corrupted! should not happen!')
-        print('TODO: show the change!'); print('')
+        print('TODO: show the change!'); print('', flush=True)
         continue
     print('')
 
-    print('---- starting delta sync ----')
+    print('---- starting delta sync ----', flush=True)
     f = open('sha1sum.txt', 'r')
     sha1_last = f.read().splitlines()
     f.close()
@@ -313,11 +323,11 @@ for folder in folders:
     
     print('total files:', len(sha1))
     print('moved from previous version:', rename_count)
-    print('')
+    print('', flush=True)
     
     print('------- DEBUG: rehash backup folder ------')
     os.chdir(dest2)
-    hash_or_rehash_cwd(); print('')
+    hash_or_rehash_cwd(); print('', flush=True)
 
 if need_review:
     print('============ review & rerun needed =============')
