@@ -26,6 +26,9 @@ import shutil # for copy file
 import errno
 import natsort # natural sort folder name
 
+# exclude these files in pybup.txt
+exclude=('pybup.txt', 'pybup-new.txt', 'pybup-diff.txt', 'pybup-norehash')
+
 # copy folder recursively
 def copy_folder(src, dst):
     try:
@@ -39,7 +42,7 @@ def copy_folder(src, dst):
             exit(1)
 
 # get a list of files and modified date and size of current directory
-def size_time_cwd(exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
+def size_time_cwd():
     flist = file_list_r('./'); Nf = len(flist)
     ftime = []
     fsize = []
@@ -56,7 +59,7 @@ def size_time_cwd(exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
 # sha1_cwd('pybup.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > pybup.txt`
 # write to file if fname provided
 # doesn't include `fname` itself
-def sha1_cwd(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
+def sha1_cwd(fname=None):
     flist = file_list_r('./')
     sha1 = []
     Nf = len(flist)
@@ -64,12 +67,14 @@ def sha1_cwd(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'
         exclude.add(fname)
 
     for i in range(Nf):
-            f = flist[i]
-            line = '%12d'.format(os.stat(f).st_size) + '  ' + round(os.path.getmtime(f)) + '  ' + sha1file(f) + '  ' + f
-            print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
-            if os.path.split(f)[1] in exclude:
-                continue
-            sha1.append(line)
+        f = flist[i]
+        # new pybup.txt format
+        # line = '%12d'.format(os.stat(f).st_size) + '  ' + round(os.path.getmtime(f)) + '  ' + sha1file(f) + '  ' + f
+        line = sha1file(f) + '  ' + f
+        print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
+        if os.path.split(f)[1] in exclude:
+            continue
+        sha1.append(line)
         sha1.sort()
 
     if fname != None:
@@ -80,34 +85,43 @@ def sha1_cwd(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'
         print('', flush=True)
     return sha1
 
-# return True if cwd has changed based on pybup.txt, then write pybup-new.txt
-# if pybup.txt is empty, will update automatically, and return False
-def hash_or_rehash_cwd(no_rehash=False):
+# return True if review is needed, otherwise directory will be clean after return
+def check_cwd():
     if os.path.exists('pybup-new.txt'):
         return True
     if not os.path.exists('pybup.txt'):
-        print('pybup.txt or pybup-new.txt not found, hasing...', flush=True)
-        sha1_cwd('pybup.txt')
+        old_dir = os.path.split(os.getcwd())[1]; os.chdir('..')
+        print('pybup.txt not found in', old_dir)
+        if os.path.split(os.getcwd())[1][-6:] == '.pybup':
+            # in a backup version folder
+            print('rename to {}'.format(old_dir + '.broken'), flush=True)
+            os.rename(old_dir, old_dir + '.broken')
+            os.chdir(old_dir + '.broken')
+        else: # in a working folder
+            os.chdir(old_dir)
+        print('hasing...', flush=True)
+        sha1_cwd()
         return False
-    elif no_rehash: # pybup.txt exist
-        print("pybup.txt exist! [no_rehash] assuming it's up to date", flush=True)
-    else: # pybup.txt exist
+    elif os.stat('pybup.txt').st_size == 0: # pybup.txt is empty
+        os.remove('pybup.txt')
+        print('hasing...', flush=True)
+        sha1_cwd()
+        return False
+    elif os.path.exist('pybup-norehash'): # pybup.txt non-empty and norehash
+        print("pybup-norehash exist, assuming no change or corruption!", flush=True)
+        return False
+    else: # pybup.txt non-empty
         print('pybup.txt exist! rehashing...', flush=True)
         sha1_new = sha1_cwd()
         sha1_new = '\n'.join(sha1_new) + '\n'
         f = open('pybup.txt', 'r')
-        sha1 = f.read()
-        f.close()
-        if os.stat('pybup.txt').st_size == 0: # pybup.txt is empty
-            print('pybup.txt is empty, update automatically...', flush=True)
-            f = open('pybup.txt', 'w')
-            f.write(sha1_new); f.close()
-            return False
-        elif sha1_new != sha1:
+        sha1 = f.read(); f.close()
+        if sha1_new != sha1:
             f = open('pybup-new.txt', 'w')
-            f.write(sha1_new)
-            f.close()
-            print('pybup.txt changed, compare to pybup-new.txt manually!', flush=True)
+            f.write(sha1_new); f.close()
+            print('folder has change, review pybup-diff.txt, if everything ok, replace pybup.txt with pybup-new.txt', flush=True)
+            f = open('pybup-diff.txt', 'w')
+            f.write(diff_cwd()); f.close()
             return True
         else:
             print('no change or corruption!', flush=True)
@@ -188,16 +202,9 @@ def rm_empty_folders(path, removeRoot=True):
         # print("Removing empty folder:", path)
         os.rmdir(path)
 
-
-
 ## =========== main() program ==============
 
 os.chdir(src)
-
-amend_run = os.path.exists('backup.py_has_conflict_waiting_amend_run')
-if amend_run:
-    print('running in amend mode!'); print('', flush=True)
-    os.remove('backup.py_has_conflict_waiting_amend_run')
 
 # pipe won't work!
 def shell_cmd(*cmd):
@@ -211,7 +218,7 @@ def shell_cmd(*cmd):
 # recycled code
 '''
 # sha1_cwd() using bash command
-def sha1_cwd_bash(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
+def sha1_cwd_bash(fname=None):
     print('deprecated! use sha1_cwd instead!'); sys.exit(1)
     lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
     lines.sort()
@@ -252,6 +259,7 @@ while i < len(folders):
         del folders[i]
 print(''); print('')
 Nfolder = len(folders)
+need_review = False
 
 # skip until folder = start
 ind0 = 0
@@ -294,12 +302,10 @@ for ind in range(ind0, Nfolder):
     print('checking', '['+folder+']'); print('-'*40, flush=True)
     os.chdir(src + '/' + folder)
 
-    if (hash_or_rehash_cwd(amend_run)):
+    if (check_cwd()):
         # `folder` has change or corruption
+        need_review = True
         print('please review changes in [pybup-diff.txt] then replace pybup.txt with pybup-new.txt', flush=True)
-        open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
-        f = open('pybup-diff.txt', 'w')
-        f.write(diff_cwd()); f.close()
         continue
     elif not amend_run and dest2_last and (dest2 != dest2_last):
         # `folder` has no change or corruption
@@ -323,12 +329,10 @@ for ind in range(ind0, Nfolder):
         print('checking ['+folder_ver+']'); print('-'*40, flush=True)
         if not os.path.exists('pybup.txt'):
             print('pybup.txt not found, unfinished backup?')
-            hash_or_rehash_cwd()
-        elif hash_or_rehash_cwd():
-            print('corrupted backup files?')
-            f = open('pybup-diff.txt', 'w')
-            f.write(diff_cwd()); f.close()
-            print('', flush=True)
+            check_cwd()
+        elif check_cwd():
+            need_review
+            print('corrupted backup files?'); print('', flush=True)
             continue
 
         # check pybup.txt between src and dest2
@@ -339,7 +343,6 @@ for ind in range(ind0, Nfolder):
         if (sha1_dest != sha1):
             print('='*40)
             print('pybup.txt differs from source! please use a new version number and run again.')
-            open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
             continue
         print('both pybup.txt maches!'); print('', flush=True)
         continue
@@ -359,9 +362,9 @@ for ind in range(ind0, Nfolder):
     # --- delta sync ---
     print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----', flush=True)    
     os.chdir(dest2_last)
-    if (hash_or_rehash_cwd()):
+    if (check_cwd()):
+        need_review = True
         print('================> backup corrupted! should not happen!')
-        print('TODO: show the change!'); print('', flush=True)
         continue
     print('')
 
@@ -414,9 +417,11 @@ for ind in range(ind0, Nfolder):
     
     print('------- DEBUG: rehash backup folder ------')
     os.chdir(dest2)
-    hash_or_rehash_cwd(); print('', flush=True)
+    if (check_cwd()):
+        need_review = True
+    print('', flush=True)
 
-if os.path.exists(src + '/backup.py_has_conflict_waiting_amend_run'):
+if need_review:
     print('============ review & rerun needed =============')
 else:
     print('=============== ALL DONE ===============')
