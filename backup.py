@@ -4,19 +4,18 @@
 # every subfolder `folder` in `src` will be backed up to `dest/folder.sync/folder.v???`
 # where `???` is version number `ver`
 # incremental backup will just move identical files from previous version, if any exist
-# each folder will have `sha1sum.txt` keeping the hash for every file inside
+# each folder will have `pybup.txt` keeping the hash for every file inside
 # just follow the instructions for other cases ...
-# you can manually generate sha1sum.txt with `find . -type f -exec sha1sum {} \; | sort > sha1sum-new.txt`
-
-# TODO: sha1sum.txt also record file size and modification date, and lazy mode can use those to tell if file has been updated, only rehash all files when told to
+# you can manually generate pybup.txt with `find . -type f -exec sha1sum {} \; | sort > pybup-new.txt`
 
 # === params ===========================
-src = '/mnt/d/'
+src = '/mnt/p/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
 start = '' # skip until this folder
-ignore = ['数学物理考研试卷']
+ignore = ['比心', '电影', '数学物理考研试卷']
+
 # =====================================
 
 import os
@@ -39,17 +38,11 @@ def copy_folder(src, dst):
             print('copy_folder() failed! you might not have permission!')
             exit(1)
 
-# # get a list of files and modified date and size of current directory
-# def size_time_cwd(exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
-#     flist = file_list_r('./')
-#     time
-
-
 # hash every file in current directory and sort hash to a list
-# sha1_cwd('sha1sum.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > sha1sum.txt`
+# sha1_cwd('pybup.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > pybup.txt`
 # write to file if fname provided
 # doesn't include `fname` itself
-def sha1_cwd(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
+def sha1_cwd(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
     flist = file_list_r('./')
     sha1 = []
     Nf = len(flist)
@@ -78,44 +71,44 @@ def sha1_cwd(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-dif
     print('', flush=True)
     return sha1
 
-# return True if cwd has changed based on sha1sum.txt, then write sha1sum-new.txt
-# if sha1sum.txt is empty, will update automatically, and return False
+# return True if cwd has changed based on pybup.txt, then write pybup-new.txt
+# if pybup.txt is empty, will update automatically, and return False
 def hash_or_rehash_cwd(no_rehash=False):
-    if os.path.exists('sha1sum-new.txt'):
+    if os.path.exists('pybup-new.txt'):
         return True
-    if not os.path.exists('sha1sum.txt'):
-        print('sha1sum.txt or sha1sum-new.txt not found, hasing...', flush=True)
-        sha1_cwd('sha1sum.txt')
+    if not os.path.exists('pybup.txt'):
+        print('pybup.txt or pybup-new.txt not found, hasing...', flush=True)
+        sha1_cwd('pybup.txt')
         return False
-    elif no_rehash: # sha1sum.txt exist
-        print("sha1sum.txt exist! [no_rehash] assuming it's up to date", flush=True)
-    else: # sha1sum.txt exist
-        print('sha1sum.txt exist! rehashing...', flush=True)
+    elif no_rehash: # pybup.txt exist
+        print("pybup.txt exist! [no_rehash] assuming it's up to date", flush=True)
+    else: # pybup.txt exist
+        print('pybup.txt exist! rehashing...', flush=True)
         sha1_new = sha1_cwd()
         sha1_new = '\n'.join(sha1_new) + '\n'
-        f = open('sha1sum.txt', 'r')
+        f = open('pybup.txt', 'r')
         sha1 = f.read()
         f.close()
-        if os.stat('sha1sum.txt').st_size == 0: # sha1sum.txt is empty
-            print('sha1sum.txt is empty, update automatically...', flush=True)
-            f = open('sha1sum.txt', 'w')
+        if os.stat('pybup.txt').st_size == 0: # pybup.txt is empty
+            print('pybup.txt is empty, update automatically...', flush=True)
+            f = open('pybup.txt', 'w')
             f.write(sha1_new); f.close()
             return False
         elif sha1_new != sha1:
-            f = open('sha1sum-new.txt', 'w')
+            f = open('pybup-new.txt', 'w')
             f.write(sha1_new)
             f.close()
-            print('sha1sum.txt changed, compare to sha1sum-new.txt manually!', flush=True)
+            print('pybup.txt changed, compare to pybup-new.txt manually!', flush=True)
             return True
         else:
             print('no change or corruption!', flush=True)
             return False
 
-# show difference between sha1sum-new.txt and sha1sum.txt of current folder
+# show difference between pybup-new.txt and pybup.txt of current folder
 def diff_cwd():
-    f = open('sha1sum.txt', 'r')
+    f = open('pybup.txt', 'r')
     sha1 = f.read().splitlines(); f.close()
-    f = open('sha1sum-new.txt', 'r')
+    f = open('pybup-new.txt', 'r')
     sha1_new = f.read().splitlines(); f.close()
     i = 0; j = 0
     output = []
@@ -196,8 +189,6 @@ if amend_run:
     print('running in amend mode!'); print('', flush=True)
     os.remove('backup.py_has_conflict_waiting_amend_run')
 
-# recycled code
-'''
 # pipe won't work!
 def shell_cmd(*cmd):
     process = subprocess.Popen(list(cmd), stdout=subprocess.PIPE)
@@ -206,11 +197,11 @@ def shell_cmd(*cmd):
         print(error)
         sys.exit(1)
     return output.decode()
-'''
 
+# recycled code
 '''
 # sha1_cwd() using bash command
-def sha1_cwd_bash(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1sum-diff.txt'}):
+def sha1_cwd_bash(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
     print('deprecated! use sha1_cwd instead!'); sys.exit(1)
     lines = shell_cmd('find', '.', '-type', 'f', '-exec', 'sha1sum', '{}', ';').splitlines()
     lines.sort()
@@ -223,12 +214,13 @@ def sha1_cwd_bash(fname=None, exclude={'sha1sum.txt', 'sha1sum-new.txt', 'sha1su
             i -= 1
         i += 1
     if fname != None:
-        f = open('sha1sum.txt', 'w')
+        f = open('pybup.txt', 'w')
         f.write('\n'.join(lines))
         f.close()
     return lines
 '''
 
+# === main function ====
 # === loop through all sub folders ===
 
 os.chdir(src)
@@ -239,11 +231,11 @@ else:
     folders = next(os.walk('.'))[1]
     folders.sort()
 
-# get folders with sha1sum.txt inside
+# get folders with pybup.txt inside
 print('folders to backup:'); print(''); i = 0
 while i < len(folders):
     folder = folders[i]
-    if os.path.exists(folder + '/sha1sum.txt'):
+    if os.path.exists(folder + '/pybup.txt'):
         print('[{}] {}'.format(i+1, folder))
         i += 1
     else:
@@ -294,21 +286,21 @@ for ind in range(ind0, Nfolder):
 
     if (hash_or_rehash_cwd(amend_run)):
         # `folder` has change or corruption
-        print('please review changes in [sha1sum-diff.txt] then replace sha1sum.txt with sha1sum-new.txt', flush=True)
+        print('please review changes in [pybup-diff.txt] then replace pybup.txt with pybup-new.txt', flush=True)
         open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
-        f = open('sha1sum-diff.txt', 'w')
+        f = open('pybup-diff.txt', 'w')
         f.write(diff_cwd()); f.close()
         continue
     elif not amend_run and dest2_last and (dest2 != dest2_last):
         # `folder` has no change or corruption
         print('can we can renaming [{}] to [{}] ?'.format(folder_ver_last, folder_ver))
         print('-'*40, flush=True)
-        f = open(dest2_last + '/sha1sum.txt', 'r')
+        f = open(dest2_last + '/pybup.txt', 'r')
         sha1_dest = f.read(); f.close()
-        f = open(src + '/' + folder + '/sha1sum.txt', 'r')
+        f = open(src + '/' + folder + '/pybup.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
-            print('sha1sum.txt differs, cannot rename!'); print('', flush=True)
+            print('pybup.txt differs, cannot rename!'); print('', flush=True)
         else:
             os.rename(dest2_last, dest2)
             print('', flush=True)
@@ -319,27 +311,27 @@ for ind in range(ind0, Nfolder):
     if os.path.exists(dest2):
         os.chdir(dest2)
         print('checking ['+folder_ver+']'); print('-'*40, flush=True)
-        if not os.path.exists('sha1sum.txt'):
-            print('sha1sum.txt not found, unfinished backup?')
+        if not os.path.exists('pybup.txt'):
+            print('pybup.txt not found, unfinished backup?')
             hash_or_rehash_cwd()
         elif hash_or_rehash_cwd():
             print('corrupted backup files?')
-            f = open('sha1sum-diff.txt', 'w')
+            f = open('pybup-diff.txt', 'w')
             f.write(diff_cwd()); f.close()
             print('', flush=True)
             continue
 
-        # check sha1sum.txt between src and dest2
-        f = open(dest2 + '/sha1sum.txt', 'r')
+        # check pybup.txt between src and dest2
+        f = open(dest2 + '/pybup.txt', 'r')
         sha1_dest = f.read(); f.close()
-        f = open(src + '/' + folder + '/sha1sum.txt', 'r')
+        f = open(src + '/' + folder + '/pybup.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
             print('='*40)
-            print('sha1sum.txt differs from source! please use a new version number and run again.')
+            print('pybup.txt differs from source! please use a new version number and run again.')
             open(src + '/backup.py_has_conflict_waiting_amend_run', 'w').close()
             continue
-        print('both sha1sum.txt maches!'); print('', flush=True)
+        print('both pybup.txt maches!'); print('', flush=True)
         continue
     
     # === backup folder doesn't exist, backup ===
@@ -364,11 +356,11 @@ for ind in range(ind0, Nfolder):
     print('')
 
     print('---- starting delta sync ----', flush=True)
-    f = open('sha1sum.txt', 'r')
+    f = open('pybup.txt', 'r')
     sha1_last = f.read().splitlines()
     f.close()
     os.chdir(src + '/' + folder)
-    f = open('sha1sum.txt', 'r')
+    f = open('pybup.txt', 'r')
     sha1 = f.read().splitlines()
     f.close()
     rename_count = 0; i = j = 0
@@ -396,9 +388,9 @@ for ind in range(ind0, Nfolder):
         if not match: # no match, just copy
             shutil.copyfile(path[1:], dest2+path)
     
-    # update previous sha1sum.txt
-    shutil.copyfile('sha1sum.txt', dest2 + '/' + 'sha1sum.txt')
-    f = open(dest2_last+'/sha1sum.txt', 'w')
+    # update previous pybup.txt
+    shutil.copyfile('pybup.txt', dest2 + '/' + 'pybup.txt')
+    f = open(dest2_last+'/pybup.txt', 'w')
     f.write('\n'.join(sha1_last))
     f.close()
     
