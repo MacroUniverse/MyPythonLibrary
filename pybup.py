@@ -16,6 +16,7 @@ select = [] # only backup these sub-dirs
 start = '' # skip until this folder
 hash = False # turn off to use file size and time instead of sha1sum
 ignore = ['比心', '电影', '数学物理考研试卷']
+debug_mode = True
 # =====================================
 
 import os
@@ -88,38 +89,44 @@ def sha1_cwd(fname=None):
 # return True if review is needed, otherwise directory will be clean after return
 def check_cwd():
     if os.path.exists('pybup-new.txt'):
+        print('pending review, replace pybup.txt with pybup-new.txt when done.')
         return True
     if not os.path.exists('pybup.txt'):
-        old_dir = os.path.split(os.getcwd())[1]; os.chdir('..')
         print('pybup.txt not found in', old_dir)
+        old_dir = os.path.split(os.getcwd())[1]
+        os.chdir('..')
+        # in a backup version folder ?
         if os.path.split(os.getcwd())[1][-6:] == '.pybup':
-            # in a backup version folder
             print('rename to {}'.format(old_dir + '.broken'), flush=True)
             os.rename(old_dir, old_dir + '.broken')
             os.chdir(old_dir + '.broken')
-        else: # in a working folder
+        else:
             os.chdir(old_dir)
         print('hasing...', flush=True)
         sha1_cwd()
-        return False
-    elif os.stat('pybup.txt').st_size == 0: # pybup.txt is empty
+        return True
+    elif os.stat('pybup.txt').st_size == 0:
+        # pybup.txt is empty
         os.remove('pybup.txt')
         print('hasing...', flush=True)
         sha1_cwd()
         return False
-    elif os.path.exist('pybup-norehash'): # pybup.txt non-empty and norehash
+    elif os.path.exist('pybup-norehash'):
+        # pybup.txt not empty, norehash
         print("pybup-norehash exist, assuming no change or corruption!", flush=True)
+        if not debug_mode:
+            os.remove('pybup-norehash')
         return False
     else: # pybup.txt non-empty
-        print('pybup.txt exist! rehashing...', flush=True)
+        print('pybup.txt not empty, rehashing...', flush=True)
         sha1_new = sha1_cwd()
         sha1_new = '\n'.join(sha1_new) + '\n'
         f = open('pybup.txt', 'r')
         sha1 = f.read(); f.close()
-        if sha1_new != sha1:
+        if sha1_new != sha1: # hash change
             f = open('pybup-new.txt', 'w')
             f.write(sha1_new); f.close()
-            print('folder has change, review pybup-diff.txt, if everything ok, replace pybup.txt with pybup-new.txt', flush=True)
+            print('folder has change, review pybup-diff.txt, if everything ok, replace pybup.txt with pybup-new.txt, delete pybup-diff.txt, and add pybup-norehash', flush=True)
             f = open('pybup-diff.txt', 'w')
             f.write(diff_cwd()); f.close()
             return True
@@ -202,10 +209,6 @@ def rm_empty_folders(path, removeRoot=True):
         # print("Removing empty folder:", path)
         os.rmdir(path)
 
-## =========== main() program ==============
-
-os.chdir(src)
-
 # pipe won't work!
 def shell_cmd(*cmd):
     process = subprocess.Popen(list(cmd), stdout=subprocess.PIPE)
@@ -237,10 +240,9 @@ def sha1_cwd_bash(fname=None):
     return lines
 '''
 
-# === main function ====
-# === loop through all sub folders ===
-
+## =========== main() program ==============
 os.chdir(src)
+need_rerun = False
 
 if select:
     folders = select
@@ -259,7 +261,6 @@ while i < len(folders):
         del folders[i]
 print(''); print('')
 Nfolder = len(folders)
-need_review = False
 
 # skip until folder = start
 ind0 = 0
@@ -268,6 +269,7 @@ if start:
         if folders[ind0] == start:
             break
 
+#  ==== loop through all sub folders =====
 for ind in range(ind0, Nfolder):
     os.chdir(src)
     folder = folders[ind]
@@ -284,7 +286,7 @@ for ind in range(ind0, Nfolder):
     dest1 = dest + '/' + folder + '.sync'
     dest2 = dest1 + '/' + folder_ver
     
-    # === check latest backup ===
+    # === search latest backup ===
     print('current backup [{}]'.format(folder_ver), flush=True)
     dest2_last = ''
     if os.path.exists(dest1):
@@ -301,69 +303,64 @@ for ind in range(ind0, Nfolder):
     # === check source folder ===
     print('checking', '['+folder+']'); print('-'*40, flush=True)
     os.chdir(src + '/' + folder)
-
     if (check_cwd()):
         # `folder` has change or corruption
-        need_review = True
-        print('please review changes in [pybup-diff.txt] then replace pybup.txt with pybup-new.txt', flush=True)
+        need_rerun = True
         continue
-    elif not amend_run and dest2_last and (dest2 != dest2_last):
-        # `folder` has no change or corruption
-        print('can we can renaming [{}] to [{}] ?'.format(folder_ver_last, folder_ver))
-        print('-'*40, flush=True)
-        f = open(dest2_last + '/pybup.txt', 'r')
-        sha1_dest = f.read(); f.close()
-        f = open(src + '/' + folder + '/pybup.txt', 'r')
-        sha1 = f.read(); f.close()
-        if (sha1_dest != sha1):
-            print('pybup.txt differs, cannot rename!'); print('', flush=True)
-        else:
-            os.rename(dest2_last, dest2)
-            print('', flush=True)
-    else:
-        print('', flush=True)
-
-    # === check backup folder (if exist) ===
-    if os.path.exists(dest2):
+    elif os.path.exists(dest2):
+        # backup folder already exist, check
         os.chdir(dest2)
         print('checking ['+folder_ver+']'); print('-'*40, flush=True)
-        if not os.path.exists('pybup.txt'):
-            print('pybup.txt not found, unfinished backup?')
-            check_cwd()
-        elif check_cwd():
-            need_review
-            print('corrupted backup files?'); print('', flush=True)
+        if (check_cwd()):
+            need_rerun = True
             continue
-
-        # check pybup.txt between src and dest2
+        # compare 2 pybup.txt
         f = open(dest2 + '/pybup.txt', 'r')
         sha1_dest = f.read(); f.close()
         f = open(src + '/' + folder + '/pybup.txt', 'r')
         sha1 = f.read(); f.close()
         if (sha1_dest != sha1):
-            print('='*40)
             print('pybup.txt differs from source! please use a new version number and run again.')
+            print('', flush=True)
             continue
-        print('both pybup.txt maches!'); print('', flush=True)
-        continue
-    
-    # === backup folder doesn't exist, backup ===
+        else:
+            print('everything ok!'); print('')
+            continue
+    elif not dest2_last:
+        # no previous backup, direct copy
+        if dest2_last == '':
+            print('---- no previous backup, copying... ----', flush=True)
+            os.chdir(src)
+            # os.makedirs(dest2)
+            # shell_cmd('cp', '-a', folder + '/.', dest2)
+            copy_folder(folder, dest2)
+            print('', flush=True)
+            continue
 
-    # --- no previous backup, direct copy ---
-    if dest2_last == '':
-        print('---- no previous backup, copying... ----', flush=True)
-        os.chdir(src)
-        # os.makedirs(dest2)
-        # shell_cmd('cp', '-a', folder + '/.', dest2)
-        copy_folder(folder, dest2)
+    # last version backup exist
+    os.chdir(dest2_last)
+    print('checking ['+folder_ver_last+']'); print('-'*40, flush=True)
+    if (check_cwd()):
+        need_rerun = True
+        continue
+    # compare 2 pybup.txt
+    f = open(dest2_last + '/pybup.txt', 'r')
+    sha1_dest = f.read(); f.close()
+    f = open(src + '/' + folder + '/pybup.txt', 'r')
+    sha1 = f.read(); f.close()
+    if (sha1_dest == sha1):
+        # can rename version
+        print('rename {} to {}'.format(dest2_last, dest2))
+        os.rename(dest2_last, dest2)
         print('', flush=True)
         continue
 
+    # can't rename backup version, use delta backup
     # --- delta sync ---
     print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----', flush=True)    
     os.chdir(dest2_last)
     if (check_cwd()):
-        need_review = True
+        need_rerun = True
         print('================> backup corrupted! should not happen!')
         continue
     print('')
@@ -402,15 +399,18 @@ for ind in range(ind0, Nfolder):
             shutil.copyfile(path[1:], dest2+path)
     
     # update previous pybup.txt
+    print('update previous pybup.txt')
     shutil.copyfile('pybup.txt', dest2 + '/' + 'pybup.txt')
     f = open(dest2_last+'/pybup.txt', 'w')
     f.write('\n'.join(sha1_last))
     f.close()
     
     # delete empty folders
+    print('remove empty folders')
     # shell_cmd('find', dest2_last, '-empty', '-type', 'd', '-delete')
     rm_empty_folders(dest2_last, False)
     
+    # summary
     print('total files:', len(sha1))
     print('moved from previous version:', rename_count)
     print('', flush=True)
@@ -418,10 +418,12 @@ for ind in range(ind0, Nfolder):
     print('------- DEBUG: rehash backup folder ------')
     os.chdir(dest2)
     if (check_cwd()):
-        need_review = True
+        print('internal error: delta backup failed!')
+        need_rerun = True
+    print('delta backup successful!')
     print('', flush=True)
 
-if need_review:
+if need_rerun:
     print('============ review & rerun needed =============')
 else:
     print('=============== ALL DONE ===============')
