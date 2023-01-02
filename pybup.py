@@ -47,6 +47,8 @@ def size_time_cwd():
     fsize = []
     for i in range(Nf):
         f = flist[i]
+        if not os.path.exists(f): # deleted just now
+            continue
         print('[{}/{}] ||||||||||||||\r'.format(i+1, Nf), end="", flush=True)
         if os.path.split(f)[1] in exclude:
             continue
@@ -67,6 +69,8 @@ def sha1_cwd(fname=None):
 
     for i in range(Nf):
         f = flist[i]
+        if not os.path.exists(f): # deleted just now
+            continue
         # new pybup.txt format
         # line = '%12d'.format(os.stat(f).st_size) + '  ' + round(os.path.getmtime(f)) + '  ' + sha1file(f) + '  ' + f
         line = sha1file(f) + '  ' + f
