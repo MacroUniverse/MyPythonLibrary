@@ -14,8 +14,8 @@ dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
 start = '' # skip until this folder
+hash = False # turn off to use file size and time instead of sha1sum
 ignore = ['比心', '电影', '数学物理考研试卷']
-
 # =====================================
 
 import os
@@ -38,6 +38,20 @@ def copy_folder(src, dst):
             print('copy_folder() failed! you might not have permission!')
             exit(1)
 
+# get a list of files and modified date and size of current directory
+def size_time_cwd(exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'}):
+    flist = file_list_r('./'); Nf = len(flist)
+    ftime = []
+    fsize = []
+    for i in range(Nf):
+        f = flist[i]
+        print('[{}/{}] ||||||||||||||\r'.format(i+1, Nf), end="", flush=True)
+        if os.path.split(f)[1] in exclude:
+            continue
+        ftime.append(round(os.path.getmtime(f)))
+        fsize.append(os.stat(f).st_size)
+    return ftime, fsize
+
 # hash every file in current directory and sort hash to a list
 # sha1_cwd('pybup.txt') should be the same with `find . -type f -exec sha1sum {} \; | sort > pybup.txt`
 # write to file if fname provided
@@ -48,27 +62,22 @@ def sha1_cwd(fname=None, exclude={'pybup.txt', 'pybup-new.txt', 'pybup-diff.txt'
     Nf = len(flist)
     if fname != None:
         exclude.add(fname)
-        for i in range(Nf):
+
+    for i in range(Nf):
             f = flist[i]
-            line = sha1file(f) + '  ' + f
+            line = '%12d'.format(os.stat(f).st_size) + '  ' + round(os.path.getmtime(f)) + '  ' + sha1file(f) + '  ' + f
             print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
             if os.path.split(f)[1] in exclude:
                 continue
             sha1.append(line)
         sha1.sort()
+
+    if fname != None:
         f = open(fname, 'w')
         f.write('\n'.join(sha1) + '\n')
         f.close()
     else: # fname == None
-        for i in range(Nf):
-            f = flist[i]
-            line = sha1file(f) + '  ' + f
-            print('[{}/{}] {}    ||||||||||||||\r'.format(i+1, Nf, line[44:]), end="", flush=True)
-            if os.path.split(f)[1] in exclude:
-                continue
-            sha1.append(line)
-        sha1.sort()
-    print('', flush=True)
+        print('', flush=True)
     return sha1
 
 # return True if cwd has changed based on pybup.txt, then write pybup-new.txt
@@ -180,7 +189,8 @@ def rm_empty_folders(path, removeRoot=True):
         os.rmdir(path)
 
 
-## =========== main program ==============
+
+## =========== main() program ==============
 
 os.chdir(src)
 
