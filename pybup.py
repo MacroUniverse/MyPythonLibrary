@@ -1,22 +1,20 @@
 #! /usr/bin/python3
 
 # a very simple incremental backup utility
-# every subfolder `folder` in `src` will be backed up to `dest/folder.sync/folder.v???`
-# where `???` is version number `ver`
-# incremental backup will just move identical files from previous version, if any exist
+# every subfolder `folder` in `src` will be backed up to `dest/folder.pybup/folder.v???`, where `???` is version number `ver`
 # each folder will have `pybup.txt` keeping the hash for every file inside
+# incremental backup will just move identical files from previous version, if any exist
 # just follow the instructions for other cases ...
 # you can manually generate pybup.txt with `find . -type f -exec sha1sum {} \; | sort > pybup-new.txt`
 
 # === params ===========================
-src = '/mnt/p/'
+src = '/mnt/d/'
 dest = '/mnt/q/'
 ver = '0'
 select = [] # only backup these sub-dirs
 start = '' # skip until this folder
-hash = False # turn off to use file size and time instead of sha1sum
-ignore = ['比心', '电影', '数学物理考研试卷']
-debug_mode = True
+ignore = []
+debug_mode = True # don't delete pybup-nohash, check incremental backup
 # =====================================
 
 import os
@@ -111,7 +109,7 @@ def check_cwd():
         print('hasing...', flush=True)
         sha1_cwd()
         return False
-    elif os.path.exist('pybup-norehash'):
+    elif os.path.exists('pybup-norehash'):
         # pybup.txt not empty, norehash
         print("pybup-norehash exist, assuming no change or corruption!", flush=True)
         if not debug_mode:
@@ -283,7 +281,7 @@ for ind in range(ind0, Nfolder):
         continue
 
     folder_ver = folder + '.v' + ver
-    dest1 = dest + '/' + folder + '.sync'
+    dest1 = dest + '/' + folder + '.pybup'
     dest2 = dest1 + '/' + folder_ver
     
     # === search latest backup ===
@@ -309,7 +307,7 @@ for ind in range(ind0, Nfolder):
         continue
     elif os.path.exists(dest2):
         # backup folder already exist, check
-        os.chdir(dest2)
+        print(''); os.chdir(dest2)
         print('checking ['+folder_ver+']'); print('-'*40, flush=True)
         if (check_cwd()):
             need_rerun = True
@@ -324,7 +322,7 @@ for ind in range(ind0, Nfolder):
             print('', flush=True)
             continue
         else:
-            print('everything ok!'); print('')
+            print('pybup.txt identical, everything ok!'); print('')
             continue
     elif not dest2_last:
         # no previous backup, direct copy
@@ -355,8 +353,7 @@ for ind in range(ind0, Nfolder):
         print('', flush=True)
         continue
 
-    # can't rename backup version, use delta backup
-    # --- delta sync ---
+    # --- incremental backup ---
     print('---- checking previous backup [' + os.path.split(dest2_last)[1] + '] ----', flush=True)    
     os.chdir(dest2_last)
     if (check_cwd()):
@@ -365,7 +362,7 @@ for ind in range(ind0, Nfolder):
         continue
     print('')
 
-    print('---- starting delta sync ----', flush=True)
+    print('---- starting incremental backup ----', flush=True)
     f = open('pybup.txt', 'r')
     sha1_last = f.read().splitlines()
     f.close()
@@ -415,13 +412,18 @@ for ind in range(ind0, Nfolder):
     print('moved from previous version:', rename_count)
     print('', flush=True)
     
-    print('------- DEBUG: rehash backup folder ------')
-    os.chdir(dest2)
-    if (check_cwd()):
-        print('internal error: delta backup failed!')
-        need_rerun = True
-    print('delta backup successful!')
-    print('', flush=True)
+    if debug_mode:
+        print('------- DEBUG: rehash backup folder ------')
+        os.chdir(dest2)
+        if (check_cwd()):
+            print('internal error: incremental backup failed!')
+            need_rerun = True
+        os.chdir(dest2_last)
+        if (check_cwd()):
+            print('internal error: incremental backup failed!')
+            need_rerun = True
+        print('everything ok!')
+        print('', flush=True)
 
 if need_rerun:
     print('============ review & rerun needed =============')
