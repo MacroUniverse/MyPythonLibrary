@@ -3,6 +3,7 @@
 # scan through all mp4 and mov files in the current directory and subdirectory. If the bitrate is larger than 500kbps, compress it to 500kbps.
 
 import os
+import sys
 import shutil
 import subprocess
 
@@ -14,8 +15,9 @@ def compress_file(full_path):
 	subprocess.run(cmd, shell=True)
 
 def scan_files(directory):
-	if not os.path.exists(dir_name):
-		os.makedirs(dir_name)
+	if not os.path.exists(directory):
+		print("no such directory: ", directory)
+		sys.exit()
 	"""Scan a directory and its subdirectories for mp4 and mov files."""
 	for foldername, subfolders, filenames in os.walk(directory):
 		if foldername == './recycle':
