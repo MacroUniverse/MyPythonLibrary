@@ -25,7 +25,7 @@ def scan_files(directory):
 		if foldername == './recycle':
 			continue
 		for filename in filenames:
-			if filename.startswith('RPReplay_Final') and (filename.endswith('.mp4') or filename.endswith('.mov') or filename.endswith('.MP4') or filename.endswith('.MOV')):
+			if (filename.startswith('RPReplay') or filename.startswith('Screen_Recording')) and (filename.endswith('.mp4') or filename.endswith('.mov') or filename.endswith('.MP4') or filename.endswith('.MOV')):
 				full_path = os.path.join(foldername, filename)
 				out_path = './recycle/' + filename
 				print('\n\n', full_path)
