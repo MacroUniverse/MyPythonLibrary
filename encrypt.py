@@ -2,11 +2,12 @@
 
 # ===== what to run =======
 def main():
-    # print(encrypt_str('some string', password))
-    # print(decrypt_str('m1slBeA8WhZiP8YBgMtw/9zxV2G', password))
-    # encrypt_folder('test', 'enc-', password)
-    # decrypt_folder('enc-test', 'dec-', password)
-    # decrypt_names_in_folder('enc-test', password)
+	# print(encrypt_str('some string', password))
+	# print(decrypt_str('m1slBeA8WhZiP8YBgMtw/9zxV2G', password))
+	# encrypt_folder('test', 'enc-', password)
+	# decrypt_folder('enc-test', 'dec-', password)
+	# encrypt_names_in_folder('Computational_Physics_Course', password)
+	# decrypt_names_in_folder('Computational_Physics_Course', password)
 # ==========================
 
 import os
@@ -16,7 +17,9 @@ import subprocess
 import shutil
 import base64
 
-file_extension = '.enc'
+# internal setting
+file_extension = '.eNc'
+dic_file = 'enc-long-name-dic.txt'
 
 # encrypt a file
 def encrypt(file_to_encrypt, encrypted_file, password):
@@ -89,7 +92,6 @@ def encrypt_files_in_folder(directory, prefix, password):
 
 # decrypt files in folder to a new folder named `prefix + directory`
 def decrypt_files_in_folder(directory, prefix, password):
-	dic_file = 'enc-long-name-dic.txt'
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
 			if (name == dic_file):
@@ -116,9 +118,9 @@ def decrypt_files_in_folder(directory, prefix, password):
 # then use a `dic_file` to map to the actual
 #   encrypted name `*.<file_extension>`
 def encrypt_names_in_folder(directory, password):
-	dic_file = 'enc-long-name-dic.txt'
 	dic_path = os.path.join(directory, dic_file)
 	file = open(dic_path, 'a')
+
 	hex_chars = '0123456789abcdef'
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
@@ -129,7 +131,7 @@ def encrypt_names_in_folder(directory, password):
 			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
 			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string
+				name_short = 'long-name-' + random_hex_string \
 					+ file_extension
 				file.write(name_short + ' ' + name_new + '\n')
 				name_new = name_short
@@ -143,18 +145,19 @@ def encrypt_names_in_folder(directory, password):
 			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
 			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string
+				name_short = 'long-name-' + random_hex_string \
 					+ file_extension
 				file.write(name_short + ' ' + name_new + '\n')
 				name_new = name_short
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 	file.close()
+	if os.path.exists(dic_path) and os.path.getsize(dic_path) == 0:
+		os.remove(dic_path)
 
 # decrypt names of files and subfolders inside a folder recursively (rename)
 # will only process files with extension file_extension
 def decrypt_names_in_folder(directory, password):
-	dic_file = 'enc-long-name-dic.txt'
 	dic_path = os.path.join(directory, dic_file)
 	long_names = {}
 	if os.path.exists(dic_path):
@@ -173,7 +176,7 @@ def decrypt_names_in_folder(directory, password):
 				try:
 					name = long_names[name]
 				except Exception as e:
-					print('Error: enc-long-name-dic.txt key not found (will skip): ' + name)
+					print('Error:', dic_file, 'key not found (will skip): ' + name)
 					continue
 			str64 = custom_base_to_base64(name[:-4], base16384_str)
 			try:
@@ -191,7 +194,7 @@ def decrypt_names_in_folder(directory, password):
 				try:
 					name = long_names[name]
 				except Exception as e:
-					print('Error: enc-long-name-dic.txt key not found (will skip): ' + name)
+					print('Error:', dic_file, 'key not found (will skip): ' + name)
 					continue
 			str64 = name[:-4].replace('-', '/')
 			try:
@@ -261,8 +264,8 @@ password = input("Please enter password: ") # password = 'yourPassWord'
 # taken from Xinhua dictionary, see https://github.com/pwxcoo/chinese-xinhua
 base16384_str = ''
 with open('base16384_utf8_chinese_sorted.txt') as file:
-    # Read the contents of the file
-    base16384_str = file.read()
+	# Read the contents of the file
+	base16384_str = file.read()
 	assert len(base16384_str) == 16384
 
 main()
