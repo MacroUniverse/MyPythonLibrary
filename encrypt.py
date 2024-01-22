@@ -14,6 +14,7 @@ import sys
 import random
 import subprocess
 import shutil
+import base64
 
 file_extension = '.enc'
 
@@ -124,8 +125,8 @@ def encrypt_names_in_folder(directory, password):
 			if (name[-4:] == file_extension or name == dic_file):
 				continue
 			path_old = os.path.join(root, name)
-			name_new = encrypt_str(name, password).replace('/',
-				'-') + file_extension
+			name64 = encrypt_str(name, password)
+			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
 			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
 				name_short = 'long-name-' + random_hex_string
@@ -138,15 +139,14 @@ def encrypt_names_in_folder(directory, password):
 			if (name[-4:] == file_extension):
 				continue
 			path_old = os.path.join(root, name)
-			name_new = encrypt_str(name, password).replace('/',
-				'-') + file_extension
-			if len(name_new) > 250:
+			name64 = encrypt_str(name, password)
+			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
+			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
 				name_short = 'long-name-' + random_hex_string
 					+ file_extension
 				file.write(name_short + ' ' + name_new + '\n')
 				name_new = name_short
-				
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 	file.close()
@@ -175,7 +175,7 @@ def decrypt_names_in_folder(directory, password):
 				except Exception as e:
 					print('Error: enc-long-name-dic.txt key not found (will skip): ' + name)
 					continue
-			str64 = name[:-4].replace('-', '/')
+			str64 = custom_base_to_base64(name[:-4], base16384_str)
 			try:
 				name_new = decrypt_str(str64, password)
 			except Exception as e:
@@ -216,6 +216,53 @@ def decrypt_folder(directory, prefix, password):
 	decrypt_files_in_folder(directory, prefix, password)
 	decrypt_names_in_folder(prefix + directory, password)
 
-# ====== secret! =====
-password = 'MyPassWord'
+# ====== Private Routines ========
+def base64_to_custom_base(base64_str, custom_base_chars):
+	# Decode the base64 string to bytes
+	decoded_bytes = base64.b64decode(base64_str)
+	# Convert bytes to integer
+	num = int.from_bytes(decoded_bytes, 'big')
+	# Convert integer to custom base
+	base = len(custom_base_chars)
+	if num == 0:
+		return custom_base_chars[0]
+	result = []
+	while num:
+		num, rem = divmod(num, base)
+		result.append(custom_base_chars[rem])
+	return ''.join(reversed(result))
+
+def custom_base_to_base64(custom_str, custom_base_chars):
+	# Convert custom base string to integer
+	base = len(custom_base_chars)
+	num = 0
+	for char in custom_str:
+		num = num * base + custom_base_chars.index(char)
+	# Convert integer to bytes
+	num_bytes = num.to_bytes((num.bit_length() + 7) // 8, 'big')
+	# Encode bytes to base64
+	return base64.b64encode(num_bytes).decode()
+
+def utf8_to_base64(utf8_str):
+	# Encode the UTF-8 string to bytes
+	utf8_bytes = utf8_str.encode('utf-8')
+	# Encode these bytes to Base64
+	base64_bytes = base64.b64encode(utf8_bytes)
+	# Convert the Base64 bytes back to string
+	base64_str = base64_bytes.decode('utf-8')
+	return base64_str
+
+# ====== password =====
+password = input("Please enter password: ") # password = 'yourPassWord'
+
+# ====== base 16384 ========
+# used to encrypt names so that they are almost certainly shorter than original name
+# code points from 19968 to 39447, sorted but not contiguous
+# taken from Xinhua dictionary, see https://github.com/pwxcoo/chinese-xinhua
+base16384_str = ''
+with open('base16384_utf8_chinese_sorted.txt') as file:
+    # Read the contents of the file
+    base16384_str = file.read()
+	assert len(base16384_str) == 16384
+
 main()
