@@ -15,6 +15,8 @@ import random
 import subprocess
 import shutil
 
+file_extension = '.enc'
+
 # encrypt a file
 def encrypt(file_to_encrypt, encrypted_file, password):
 	command = [
@@ -107,9 +109,11 @@ def decrypt_files_in_folder(directory, prefix, password):
 				os.makedirs(new_path)
 
 # encrypt names of files and subfolders inside a folder recursively (rename)
-# will add file extension '.dEc', and skip files already with it
-# for files with name too long, rename it to `long-name-<uuid>.dEc`,
-# then use a `dic_file` to map to the actual encrypted name `*.dEc`
+# will add `file_extension`, and skip files already with it
+# for files with name too long, rename it to
+#   `long-name-<id>.<file_extension>`,
+# then use a `dic_file` to map to the actual
+#   encrypted name `*.<file_extension>`
 def encrypt_names_in_folder(directory, password):
 	dic_file = 'enc-long-name-dic.txt'
 	dic_path = os.path.join(directory, dic_file)
@@ -117,27 +121,29 @@ def encrypt_names_in_folder(directory, password):
 	hex_chars = '0123456789abcdef'
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-4:] == '.dEc' or name == dic_file):
+			if (name[-4:] == file_extension or name == dic_file):
 				continue
 			path_old = os.path.join(root, name)
 			name_new = encrypt_str(name, password).replace('/',
-				'-') + '.dEc'
-			if len(name_new) > 250:
+				'-') + file_extension
+			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string + '.dEc'
+				name_short = 'long-name-' + random_hex_string
+					+ file_extension
 				file.write(name_short + ' ' + name_new + '\n')
 				name_new = name_short
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 		for name in dirs:
-			if (name[-4:] == '.dEc'):
+			if (name[-4:] == file_extension):
 				continue
 			path_old = os.path.join(root, name)
 			name_new = encrypt_str(name, password).replace('/',
-				'-') + '.dEc'
+				'-') + file_extension
 			if len(name_new) > 250:
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string + '.dEc'
+				name_short = 'long-name-' + random_hex_string
+					+ file_extension
 				file.write(name_short + ' ' + name_new + '\n')
 				name_new = name_short
 				
@@ -146,7 +152,7 @@ def encrypt_names_in_folder(directory, password):
 	file.close()
 
 # decrypt names of files and subfolders inside a folder recursively (rename)
-# will only process files with extension '.dEc'
+# will only process files with extension file_extension
 def decrypt_names_in_folder(directory, password):
 	dic_file = 'enc-long-name-dic.txt'
 	dic_path = os.path.join(directory, dic_file)
@@ -160,7 +166,7 @@ def decrypt_names_in_folder(directory, password):
 				
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-4:] != '.dEc'):
+			if (name[-4:] != file_extension):
 			 	continue
 			path_old = os.path.join(root, name)
 			if (name[:10] == 'long-name-'):
@@ -178,7 +184,7 @@ def decrypt_names_in_folder(directory, password):
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 		for name in dirs:
-			if (name[-4:] != '.dEc'):
+			if (name[-4:] != file_extension):
 			 	continue
 			path_old = os.path.join(root, name)
 			if (name[:10] == 'long-name-'):
