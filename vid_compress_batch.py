@@ -11,7 +11,7 @@ def compress_file(full_path):
 	"""Compress a file to a certain bitrate using ffmpeg."""
 	directory, filename = os.path.split(full_path)
 	full_path_out = os.path.join(directory, 'ffzip_' + filename)
-	cmd = 'ffmpeg -y -i {} -b:v 500k {}'.format(full_path, full_path_out)
+	cmd = 'ffmpeg -y -i "{}" -b:v 500k "{}"'.format(full_path, full_path_out)
 	subprocess.run(cmd, shell=True)
 
 def scan_files(directory):
