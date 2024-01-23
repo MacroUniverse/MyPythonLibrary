@@ -2,10 +2,17 @@
 
 # ===== what to run =======
 def main():
-	# print(encrypt_str('some string', password))
-	# print(decrypt_str('m1slBeA8WhZiP8YBgMtw/9zxV2G', password))
+	# # example: use password = '1234'
+
+	# print(encrypt_str_to_str64('some string', password))
+	# print(decrypt_str64_to_str('tG8n+/6WJVORHEw4c2pMzA==', password))
+
+	# print(encrypt_str_to_str16384('some string', password))
+	# print(decrypt_str16384_to_str('丂變备駧榒揞喿凫崶尻', password))
+
 	# encrypt_folder('test', 'enc-', password)
 	# decrypt_folder('enc-test', 'dec-', password)
+
 	# encrypt_names_in_folder('Computational_Physics_Course', password)
 	# decrypt_names_in_folder('Computational_Physics_Course', password)
 # ==========================
@@ -19,6 +26,7 @@ import base64
 
 # internal setting
 file_extension = '.eNc'
+len_ext = len(file_extension)
 dic_file = 'enc-long-name-dic.txt'
 
 # encrypt a file
@@ -48,7 +56,7 @@ def decrypt(file_to_decrypt, decrypted_file, password):
 		raise RuntimeError('decryption failed!')
 
 # encrypt a string to base64 (no `\n`, with `=` padding)
-def encrypt_str(string_to_encrypt, password):
+def encrypt_str_to_str64(string_to_encrypt, password):
 	command = [
 		'openssl', 'enc', '-base64', '-A', '-e', '-aes-256-cbc',
 		'-nosalt', '-pbkdf2', '-pass', 'pass:' + password
@@ -60,7 +68,7 @@ def encrypt_str(string_to_encrypt, password):
 	return result.stdout
 
 # decrypt a base64 string (no `\n`, with `=` padding)
-def decrypt_str(string_to_decrypt, password):
+def decrypt_str64_to_str(string_to_decrypt, password):
 	command = [
 		'openssl', 'enc', '-base64', '-A', '-d', '-aes-256-cbc',
 		'-nosalt', '-pbkdf2', '-pass', 'pass:' + password
@@ -70,6 +78,16 @@ def decrypt_str(string_to_decrypt, password):
 	if result.returncode != 0:
 		raise RuntimeError('decryption failed!')
 	return result.stdout
+
+# encrypt a string to base16384 (no `\n`, no padding)
+def encrypt_str_to_str16384(string_to_encrypt, password):
+	str64 = encrypt_str_to_str64(string_to_encrypt, password)
+	return str64_to_strN(str64, base16384_str)
+
+# decrypt a string to base16384 (no `\n`, no padding)
+def decrypt_str16384_to_str(string_to_decrypt, password):
+	str64 = strN_to_str64(string_to_decrypt, base16384_str)
+	return decrypt_str64_to_str(str64, password)
 
 # encrypt files/folders in folder to a new folder named `prefix + directory`
 def encrypt_files_in_folder(directory, prefix, password):
@@ -120,15 +138,13 @@ def decrypt_files_in_folder(directory, prefix, password):
 def encrypt_names_in_folder(directory, password):
 	dic_path = os.path.join(directory, dic_file)
 	file = open(dic_path, 'a')
-
 	hex_chars = '0123456789abcdef'
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-4:] == file_extension or name == dic_file):
+			if (name[-len_ext:] == file_extension or name == dic_file):
 				continue
 			path_old = os.path.join(root, name)
-			name64 = encrypt_str(name, password)
-			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
+			name_new = encrypt_str_to_str16384(name, password) + file_extension
 			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
 				name_short = 'long-name-' + random_hex_string \
@@ -138,11 +154,10 @@ def encrypt_names_in_folder(directory, password):
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 		for name in dirs:
-			if (name[-4:] == file_extension):
+			if (name[-len_ext:] == file_extension):
 				continue
 			path_old = os.path.join(root, name)
-			name64 = encrypt_str(name, password)
-			name_new = base64_to_custom_base(name64, base16384_str) + file_extension
+			name_new = encrypt_str_to_str16384(name, password) + file_extension
 			if len(name_new) > 220: # windows filename max size is 224
 				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
 				name_short = 'long-name-' + random_hex_string \
@@ -166,10 +181,10 @@ def decrypt_names_in_folder(directory, password):
 				parts = line.strip().split(' ')
 				long_names[parts[0]] = parts[1]
 				# print('[' + parts[0] + '] -> [' + parts[1] + ']')
-				
+
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-4:] != file_extension):
+			if (name[-len_ext:] != file_extension):
 			 	continue
 			path_old = os.path.join(root, name)
 			if (name[:10] == 'long-name-'):
@@ -178,16 +193,15 @@ def decrypt_names_in_folder(directory, password):
 				except Exception as e:
 					print('Error:', dic_file, 'key not found (will skip): ' + name)
 					continue
-			str64 = custom_base_to_base64(name[:-4], base16384_str)
 			try:
-				name_new = decrypt_str(str64, password)
+				name_new = decrypt_str16384_to_str(name[:-len_ext], password)
 			except Exception as e:
 				print('Error: string decryption failed: ' + str64)
 				continue
 			print(path_old, ' -> ', name_new)
 			os.rename(path_old, os.path.join(root, name_new))
 		for name in dirs:
-			if (name[-4:] != file_extension):
+			if (name[-len_ext:] != file_extension):
 			 	continue
 			path_old = os.path.join(root, name)
 			if (name[:10] == 'long-name-'):
@@ -196,9 +210,8 @@ def decrypt_names_in_folder(directory, password):
 				except Exception as e:
 					print('Error:', dic_file, 'key not found (will skip): ' + name)
 					continue
-			str64 = name[:-4].replace('-', '/')
 			try:
-				name_new = decrypt_str(str64, password)
+				name_new = decrypt_str16384_to_str(name[:-len_ext], password)
 			except Exception as e:
 				print('Error: string decryption failed: ' + str64)
 				continue
@@ -220,7 +233,9 @@ def decrypt_folder(directory, prefix, password):
 	decrypt_names_in_folder(prefix + directory, password)
 
 # ====== Private Routines ========
-def base64_to_custom_base(base64_str, custom_base_chars):
+
+# convert a base 64 string to a base N string
+def str64_to_strN(base64_str, custom_base_chars):
 	# Decode the base64 string to bytes
 	decoded_bytes = base64.b64decode(base64_str)
 	# Convert bytes to integer
@@ -235,7 +250,8 @@ def base64_to_custom_base(base64_str, custom_base_chars):
 		result.append(custom_base_chars[rem])
 	return ''.join(reversed(result))
 
-def custom_base_to_base64(custom_str, custom_base_chars):
+# convert base N string to a base 64 string
+def strN_to_str64(custom_str, custom_base_chars):
 	# Convert custom base string to integer
 	base = len(custom_base_chars)
 	num = 0
@@ -246,17 +262,8 @@ def custom_base_to_base64(custom_str, custom_base_chars):
 	# Encode bytes to base64
 	return base64.b64encode(num_bytes).decode()
 
-def utf8_to_base64(utf8_str):
-	# Encode the UTF-8 string to bytes
-	utf8_bytes = utf8_str.encode('utf-8')
-	# Encode these bytes to Base64
-	base64_bytes = base64.b64encode(utf8_bytes)
-	# Convert the Base64 bytes back to string
-	base64_str = base64_bytes.decode('utf-8')
-	return base64_str
-
 # ====== password =====
-password = input("Please enter password: ") # password = 'yourPassWord'
+password = input("Please enter password: ")
 
 # ====== base 16384 ========
 # used to encrypt names so that they are almost certainly shorter than original name
@@ -268,4 +275,5 @@ with open('base16384_utf8_chinese_sorted.txt') as file:
 	base16384_str = file.read()
 	assert len(base16384_str) == 16384
 
+# ====== what to do ======
 main()
