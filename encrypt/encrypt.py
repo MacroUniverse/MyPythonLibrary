@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+#######################################
+# TODO: total path length on windows cannot exceed 200+!
+#######################################
+
 # ===== what to run =======
 def main():
 	# # example: use password = '1234'
