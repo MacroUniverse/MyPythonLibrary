@@ -14,7 +14,7 @@ def main():
 	# print(encrypt_str_to_str16384('some string', password))
 	# print(decrypt_str16384_to_str('丂變备駧榒揞喿凫崶尻', password))
 
-	# encrypt_folder('test', 'enc-', password)
+	encrypt_folder('Computational_Physics_Course', 'enc-', password)
 	# decrypt_folder('enc-test', 'dec-', password)
 
 	# encrypt_names_in_folder('Computational_Physics_Course', password)
@@ -34,6 +34,7 @@ len_ext = len(file_extension)
 dic_file = 'enc-long-name-dic.txt'
 
 # encrypt a file
+# will overwrite if output file already exists
 def encrypt(file_to_encrypt, encrypted_file, password):
 	command = [
 		'openssl', 'aes-256-cbc', '-nosalt', '-pbkdf2',
@@ -47,6 +48,7 @@ def encrypt(file_to_encrypt, encrypted_file, password):
 		raise RuntimeError('encryption failed!')
 
 # decrypt a file
+# will overwrite if output file already exists
 def decrypt(file_to_decrypt, decrypted_file, password):
 	command = [
 		'openssl', 'aes-256-cbc', '-nosalt', '-pbkdf2', '-d',
@@ -93,45 +95,71 @@ def decrypt_str16384_to_str(string_to_decrypt, password):
 	str64 = strN_to_str64(string_to_decrypt, base16384_str)
 	return decrypt_str64_to_str(str64, password)
 
-# encrypt files/folders in folder to a new folder named `prefix + directory`
-def encrypt_files_in_folder(directory, prefix, password):
-	for root, dirs, files in os.walk(directory, topdown=False):
-		for name in files:
-			path = os.path.join(root, name)
-			root_new = prefix + root
-			if not os.path.exists(root_new):
-				os.makedirs(root_new)
-			new_path = os.path.join(root_new, name)
-			print(new_path)
-			encrypt(path, new_path, password)
-		for name in dirs:
-			path = os.path.join(root, name)
-			root_new = prefix + root
-			new_path = os.path.join(root_new, name)
-			print(new_path)
-			if not os.path.exists(new_path):
-				os.makedirs(new_path)
+# encrypt files/folders in `directory` to `out_dir`
+def encrypt_files_in_folder(directory, out_dir, password):
+	cwd = os.getcwd()
+	try:
+		os.chdir(directory)
+		for root, dirs, files in os.walk('.', topdown=False):
+			for name in files:
+				path = os.path.join(root, name)
+				root_new = os.path.join(out_dir, root)
+				if not os.path.exists(root_new):
+					os.makedirs(root_new)
+				new_path = os.path.join(root_new, name)
+				print(new_path)
+				encrypt(path, new_path, password)
+			for name in dirs: # for empty path
+				path = os.path.join(root, name)
+				root_new = os.path.join(out_dir, root)
+				new_path = os.path.join(root_new, name)
+				print(new_path)
+				if not os.path.exists(new_path):
+					os.makedirs(new_path)
+	finally:
+		os.chdir(cwd)
 
-# decrypt files in folder to a new folder named `prefix + directory`
-def decrypt_files_in_folder(directory, prefix, password):
-	for root, dirs, files in os.walk(directory, topdown=False):
-		for name in files:
-			if (name == dic_file):
-				continue
-			path = os.path.join(root, name)
-			root_new = prefix + root
-			if not os.path.exists(root_new):
-				os.makedirs(root_new)
-			new_path = os.path.join(root_new, name)
-			print(new_path)
-			decrypt(path, new_path, password)
-		for name in dirs:
-			path = os.path.join(root, name)
-			root_new = prefix + root
-			new_path = os.path.join(root_new, name)
-			print(new_path)
-			if not os.path.exists(new_path):
-				os.makedirs(new_path)
+# decrypt files in `directory` to another folder `out_dir`
+def decrypt_files_in_folder(directory, out_dir, password):
+	cwd = os.getcwd()
+	try:
+		os.chdir(directory)
+		for root, dirs, files in os.walk('.', topdown=False):
+			for name in files:
+				if (name == dic_file):
+					continue
+				path = os.path.join(root, name)
+				root_new = os.path.join(out_dir, root)
+				if not os.path.exists(root_new):
+					os.makedirs(root_new)
+				new_path = os.path.join(root_new, name)
+				print(new_path)
+				decrypt(path, new_path, password)
+			for name in dirs: # for empty path
+				path = os.path.join(root, name)
+				root_new = os.path.join(out_dir, root)
+				new_path = os.path.join(root_new, name)
+				print(new_path)
+				if not os.path.exists(new_path):
+					os.makedirs(new_path)
+
+# encrypt the name of a file or folder and rename with base16384
+# if the name is too long, will name it to 'long-name-xxxx' and save the real name to `dic_file_handle`
+# dic_file_handle = open(dic_path, 'a')
+def encrypt_file_or_folder_name(path, dic_file_handle):
+	root = os.path.dirname(path)
+	name = os.path.basename(path)
+	if (name[-len_ext:] == file_extension):
+		return
+	name_new = encrypt_str_to_str16384(name, password) + file_extension
+	if len(name_new) > 220: # windows filename max size is 224
+		random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
+		name_short = 'long-name-' + random_hex_string \
+			+ file_extension
+		dic_file_handle.write(name_short + ' ' + name_new + '\n')
+		name_new = name_short
+	print(path, ' -> ', name_new)
+	os.rename(path, os.path.join(root, name_new))
 
 # encrypt names of files and subfolders inside a folder recursively (rename)
 # will add `file_extension`, and skip files already with it
@@ -141,42 +169,46 @@ def decrypt_files_in_folder(directory, prefix, password):
 #   encrypted name `*.<file_extension>`
 def encrypt_names_in_folder(directory, password):
 	dic_path = os.path.join(directory, dic_file)
-	file = open(dic_path, 'a')
+	dic_file_handle = open(dic_path, 'a')
 	hex_chars = '0123456789abcdef'
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-len_ext:] == file_extension or name == dic_file):
+			if (name == dic_file):
 				continue
-			path_old = os.path.join(root, name)
-			name_new = encrypt_str_to_str16384(name, password) + file_extension
-			if len(name_new) > 220: # windows filename max size is 224
-				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string \
-					+ file_extension
-				file.write(name_short + ' ' + name_new + '\n')
-				name_new = name_short
-			print(path_old, ' -> ', name_new)
-			os.rename(path_old, os.path.join(root, name_new))
+			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle)
 		for name in dirs:
 			if (name[-len_ext:] == file_extension):
 				continue
-			path_old = os.path.join(root, name)
-			name_new = encrypt_str_to_str16384(name, password) + file_extension
-			if len(name_new) > 220: # windows filename max size is 224
-				random_hex_string = ''.join(random.choice(hex_chars) for _ in range(32))
-				name_short = 'long-name-' + random_hex_string \
-					+ file_extension
-				file.write(name_short + ' ' + name_new + '\n')
-				name_new = name_short
-			print(path_old, ' -> ', name_new)
-			os.rename(path_old, os.path.join(root, name_new))
-	file.close()
+			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle)
+	dic_file_handle.close()
 	if os.path.exists(dic_path) and os.path.getsize(dic_path) == 0:
 		os.remove(dic_path)
+
+# encrypt the name of a file or folder and rename with base16384
+# if the name is `long-name-xxx`, will get the real encrypted name from `long_names` dictionary
+def decrypt_file_or_folder_name(path, long_names):
+	root = os.path.dirname(path)
+	name = os.path.basename(path)
+	if (name[-len_ext:] != file_extension):
+		return
+	if (name[:10] == 'long-name-'):
+		try:
+			name = long_names[name]
+		except Exception as e:
+			print('Error:', dic_file, 'key not found (will skip): ' + name)
+			return
+	try:
+		name_new = decrypt_str16384_to_str(name[:-len_ext], password)
+	except Exception as e:
+		print('Error: string decryption failed: ' + str64)
+		return
+	print(path, ' -> ', name_new)
+	os.rename(path, os.path.join(root, name_new))
 
 # decrypt names of files and subfolders inside a folder recursively (rename)
 # will only process files with extension file_extension
 def decrypt_names_in_folder(directory, password):
+	# get dictionary `long_names`
 	dic_path = os.path.join(directory, dic_file)
 	long_names = {}
 	if os.path.exists(dic_path):
@@ -188,53 +220,24 @@ def decrypt_names_in_folder(directory, password):
 
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			if (name[-len_ext:] != file_extension):
-			 	continue
-			path_old = os.path.join(root, name)
-			if (name[:10] == 'long-name-'):
-				try:
-					name = long_names[name]
-				except Exception as e:
-					print('Error:', dic_file, 'key not found (will skip): ' + name)
-					continue
-			try:
-				name_new = decrypt_str16384_to_str(name[:-len_ext], password)
-			except Exception as e:
-				print('Error: string decryption failed: ' + str64)
-				continue
-			print(path_old, ' -> ', name_new)
-			os.rename(path_old, os.path.join(root, name_new))
+			decrypt_file_or_folder_name(os.path.join(root, name), long_names)
 		for name in dirs:
-			if (name[-len_ext:] != file_extension):
-			 	continue
-			path_old = os.path.join(root, name)
-			if (name[:10] == 'long-name-'):
-				try:
-					name = long_names[name]
-				except Exception as e:
-					print('Error:', dic_file, 'key not found (will skip): ' + name)
-					continue
-			try:
-				name_new = decrypt_str16384_to_str(name[:-len_ext], password)
-			except Exception as e:
-				print('Error: string decryption failed: ' + str64)
-				continue
-			print(path_old, ' -> ', name_new)
-			os.rename(path_old, os.path.join(root, name_new))
+			decrypt_file_or_folder_name(os.path.join(root, name), long_names)
+	# don't delete for debug
 	# if os.path.exists(dic_path):
 		# os.remove(dic_path)
 
 # encrypt names and data of files and subfolders inside a folder recursively
 # and save to a new folder `prefix + directory`
-def encrypt_folder(directory, prefix, password):
-	encrypt_files_in_folder(directory, prefix, password)
-	encrypt_names_in_folder(prefix + directory, password)
+def encrypt_folder(directory, out_dir, password):
+	encrypt_files_in_folder(directory, out_dir, password)
+	encrypt_names_in_folder(out_dir, password)
 
 # decrypt names and data of files and subfolders inside a folder recursively
 # and save to a new folder `prefix + directory`
-def decrypt_folder(directory, prefix, password):
-	decrypt_files_in_folder(directory, prefix, password)
-	decrypt_names_in_folder(prefix + directory, password)
+def decrypt_folder(directory, out_dir, password):
+	decrypt_files_in_folder(directory, out_dir, password)
+	decrypt_names_in_folder(out_dir, password)
 
 # ====== Private Routines ========
 
