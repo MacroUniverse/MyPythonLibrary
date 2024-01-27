@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 #######################################
+# TODO: use os.path.relpath(path2, path1) instead of chdir
 # TODO: total path length on windows cannot exceed 200+!
 #######################################
 
