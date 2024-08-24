@@ -13,7 +13,11 @@ def merge_folders(src, dst):
         dst_dir = os.path.join(dst, relative_path)
 
         if not os.path.exists(dst_dir):
-            os.makedirs(dst_dir)
+            try:
+                os.makedirs(dst_dir)
+            except Exception as exc:
+                print(exc)
+                continue
 
         for file in files:
             src_file = os.path.join(root, file)
@@ -23,10 +27,14 @@ def merge_folders(src, dst):
                 print(f"Skipping file due to conflict: {dst_file}")
                 continue
             print(f"{src_file} -> {dst_file}")
-            shutil.move(src_file, dst_file)
+            try:
+                shutil.move(src_file, dst_file)
+            except Exception as exc:
+                print(exc)
 
 # Example usage:
-src_folder = "/volume1/data/pljj"
-dst_folder = "pljj/"
+src_folder = "my/source/"
+dst_folder = "my/dest/"
 
 merge_folders(src_folder, dst_folder)
+
