@@ -8,7 +8,7 @@ import shutil
 
 # ==== 参数 ====
 path = '.' # 要处理的文件夹
-is_dry = False # 只打印不真正重命名
+is_dry = True # 只打印不真正重命名
 max_bytes = 140 # 文件名最大字节数（群晖加密盘是 143）
 ratio = 2/3 # 删除位置
 separator = '::' # 把删除的字符替换为（可为空）
@@ -20,18 +20,31 @@ def fname_max1(root, name):
     name_utf8 = name.encode('utf-8')
     if len(name_utf8) <= max_bytes:
         return
-
-    Ncut = len(name_utf8) - max_bytes + len(separator)
-    start_cut = int(max_bytes * ratio)
-    end_cut = start_cut + Ncut
-    name_utf8_cut = name_utf8[:start_cut] + separator.encode('utf-8') + name_utf8[end_cut:]
-
-    while True:
-        try:
-            name_cut = name_utf8_cut.decode('utf-8')
+    sep_utf8 = separator.encode('utf-8')
+    N_cut_byte = len(name_utf8) - max_bytes + len(sep_utf8) # 需要删除的字节数
+    
+    Nbyte = start = 0
+    start_bytes0 = max_bytes*2 // 3
+    for i in range(1, len(name)):
+        if name[i].isascii():
+            Nbyte += 1
+        else:
+            Nbyte += 3
+        if Nbyte < start_bytes0:
+            continue
+        if start == 0:
+            start = i + 1
+            start_bytes = Nbyte
+            end_bytes = start_bytes + N_cut_byte
+            continue
+        if Nbyte < end_bytes:
+            continue
+        name_cut = name[:start] + separator + name[i+1:]
+        name_cut_utf8 = name_cut.encode('utf-8')
+        if len(name_cut_utf8) > max_bytes:
+            raise Exception('unexpected: len(name_cut_utf8) = ' + str(len(name_cut_utf8)))
+        else:
             break
-        except UnicodeDecodeError:
-            name_utf8_cut = name_utf8[:end_cut] + name_utf8[end_cut+1:]
 
     src_file = os.path.join(root, name)
     dst_file = os.path.join(root, name_cut)
