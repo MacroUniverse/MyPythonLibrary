@@ -20,36 +20,45 @@ def fname_max1(root, name):
     name_utf8 = name.encode('utf-8')
     if len(name_utf8) <= max_bytes:
         return
+
     sep_utf8 = separator.encode('utf-8')
     N_cut_byte = len(name_utf8) - max_bytes + len(sep_utf8) # 需要删除的字节数
     
-    Nbyte = start = 0
-    start_bytes0 = max_bytes*2 // 3
+    Nbyte = 0
+    start_bytes0 = int(max_bytes * ratio) # name 开头至少要保留的子节数
     for i in range(1, len(name)):
         if name[i].isascii():
             Nbyte += 1
         else:
             Nbyte += 3
-        if Nbyte < start_bytes0:
-            continue
-        if start == 0:
-            start = i + 1
-            start_bytes = Nbyte
-            end_bytes = start_bytes + N_cut_byte
-            continue
-        if Nbyte < end_bytes:
-            continue
-        name_cut = name[:start] + separator + name[i+1:]
-        name_cut_utf8 = name_cut.encode('utf-8')
-        if len(name_cut_utf8) > max_bytes:
-            raise Exception('unexpected: len(name_cut_utf8) = ' + str(len(name_cut_utf8)))
-        else:
+        if Nbyte >= start_bytes0:
             break
+
+    i += 1
+    start = i
+    start_bytes = Nbyte # 实际上 name 开头保留的字节数
+    end_bytes = start_bytes + N_cut_byte
+    
+    for i in range(i, len(name)):
+        if name[i].isascii():
+            Nbyte += 1
+        else:
+            Nbyte += 3
+        if Nbyte >= end_bytes:
+            break
+
+    i += 1
+    name_cut = name[:start] + separator + name[i:]
+    name_cut_utf8 = name_cut.encode('utf-8')
+    if len(name_cut_utf8) > max_bytes:
+        raise Exception('unexpected: len(name_cut_utf8) = ' + str(len(name_cut_utf8)))
 
     src_file = os.path.join(root, name)
     dst_file = os.path.join(root, name_cut)
     print(root)
-    print(f"   {name}\n > {name_cut}\n---------------------------")
+    print(f'   {name}')
+    print(f' > {name_cut}')
+    print('---------------------------')
     if not is_dry:
         shutil.move(src_file, dst_file)
 
