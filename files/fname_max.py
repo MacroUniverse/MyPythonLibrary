@@ -7,23 +7,24 @@ import os
 import shutil
 
 # ==== 参数 ====
-path = '1_345678901234' # 要处理的文件夹
-max_bytes = 142 # 文件名最大字节数（群晖加密盘是 143）
+path = '.' # 要处理的文件夹
+is_dry = False # 只打印不真正重命名
+max_bytes = 140 # 文件名最大字节数（群晖加密盘是 143）
 ratio = 2/3 # 删除位置
 separator = '::' # 把删除的字符替换为（可为空）
+ignore_dirs = {'.git'}
 # ==============
 
 # 重命名（截断）一个文件或文件夹
 def fname_max1(root, name):
     name_utf8 = name.encode('utf-8')
-    if len(name_utf8) < max_bytes:
-        print(name)
+    if len(name_utf8) <= max_bytes:
         return
 
     Ncut = len(name_utf8) - max_bytes + len(separator)
     start_cut = int(max_bytes * ratio)
     end_cut = start_cut + Ncut
-    name_utf8_cut = name_utf8[:start_cut] + separator + name_utf8[end_cut:]
+    name_utf8_cut = name_utf8[:start_cut] + separator.encode('utf-8') + name_utf8[end_cut:]
 
     while True:
         try:
@@ -34,12 +35,22 @@ def fname_max1(root, name):
 
     src_file = os.path.join(root, name)
     dst_file = os.path.join(root, name_cut)
-    print(f"{src_file}\n --> {name_cut}")
-    shutil.move(src_file, dst_file)
+    print(root)
+    print(f"   {name}\n > {name_cut}\n---------------------------")
+    if not is_dry:
+        shutil.move(src_file, dst_file)
 
 # 重命名（截断） `folder` 下的所有文件和文件夹，不包含 `folder`
 def fname_max(folder):
     for root, dirs, files in os.walk(folder, topdown=False):
+        rel_root = os.path.relpath(root, folder)
+        rel_root_prts = os.path.normpath(rel_root).split(os.sep)
+        ignr = False
+        for ign_dir in ignore_dirs:
+            if ign_dir in rel_root_prts:
+                ignr = True; break
+        if ignr:
+            continue
         for dir in dirs:
             fname_max1(root, dir)
         for file in files:
