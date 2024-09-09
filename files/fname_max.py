@@ -25,30 +25,28 @@ def fname_max1(root, name):
     N_cut_byte = len(name_utf8) - max_bytes + len(sep_utf8) # 需要删除的字节数
     
     Nbyte = 0
-    start_bytes0 = int(max_bytes * ratio) # name 开头至少要保留的子节数
+    start0_utf8 = int(max_bytes * ratio) # name 开头至少要保留的子节数
     for i in range(1, len(name)):
-        if name[i].isascii():
-            Nbyte += 1
-        else:
-            Nbyte += 3
-        if Nbyte >= start_bytes0:
+        Nbyte += len(name[i].encode('utf-8'))
+        if Nbyte >= start0_utf8:
             break
+    else:
+        raise Exception('unkown')
 
     i += 1
-    start = i
-    start_bytes = Nbyte # 实际上 name 开头保留的字节数
-    end_bytes = start_bytes + N_cut_byte
+    start = i # 删除 name[start:end]
+    start_utf8 = Nbyte # 实际上 name 开头保留的字节数
+    end0_bytes = start_utf8 + N_cut_byte
     
     for i in range(i, len(name)):
-        if name[i].isascii():
-            Nbyte += 1
-        else:
-            Nbyte += 3
-        if Nbyte >= end_bytes:
+        Nbyte += len(name[i].encode('utf-8'))
+        if Nbyte >= end0_bytes:
             break
+    else:
+        raise Exception('unkown')
 
-    i += 1
-    name_cut = name[:start] + separator + name[i:]
+    end = i + 1 # 删除 name[start:end], 即 name_utf8[start_utf8:Nbyte]
+    name_cut = name[:start] + separator + name[end:]
     name_cut_utf8 = name_cut.encode('utf-8')
     if len(name_cut_utf8) > max_bytes:
         raise Exception('unexpected: len(name_cut_utf8) = ' + str(len(name_cut_utf8)))
