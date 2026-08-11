@@ -90,23 +90,24 @@ def scan_files(directory, video_bitrate):
             continue
         for filename in filenames:
             # is_target_name = filename.startswith('RPReplay') or filename.startswith('Screen_Recording')
-            is_target_name = True
+            is_target_name = not filename.startswith("ffzip_")
             is_target_ext = filename.lower().endswith((".mp4", ".mov"))
-            if is_target_name and is_target_ext:
-                full_path = os.path.join(foldername, filename)
-                print("\n\n", full_path)
-                print("-----------------------------------------------------------")
-                exit_code, full_path_out = compress_file(full_path, video_bitrate)
-                if exit_code != 0 or not conversion_successful(full_path_out):
-                    print("failed!")
-                    try:
-                        os.remove(full_path_out)
-                    except OSError:
-                        pass
-                    continue
+            if not (is_target_name and is_target_ext):
+                continue
+            full_path = os.path.join(foldername, filename)
+            print("\n\n", full_path)
+            print("-----------------------------------------------------------")
+            exit_code, full_path_out = compress_file(full_path, video_bitrate)
+            if exit_code != 0 or not conversion_successful(full_path_out):
+                print("failed!")
+                try:
+                    os.remove(full_path_out)
+                except OSError:
+                    pass
+                continue
 
-                out_path = get_recycle_path(filename)
-                shutil.move(full_path, out_path)
+            out_path = get_recycle_path(filename)
+            shutil.move(full_path, out_path)
 
     # delete `./recycle` if it's empty
     if os.path.exists(RECYCLE_DIR) and not os.listdir(RECYCLE_DIR):

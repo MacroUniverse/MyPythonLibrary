@@ -5,8 +5,28 @@
 # TODO: total path length on windows cannot exceed 200+!
 #######################################
 
+# ====== base 16384 ========
+# used to encrypt names so that they are almost certainly shorter than original name
+# code points from 19968 to 39447, sorted but not contiguous
+# taken from Xinhua dictionary, see https://github.com/pwxcoo/chinese-xinhua
+base16384_str = ''
+
 # ===== what to run =======
 def main():
+	global base16384_str
+
+	# ====== password =====
+	password = input("Please enter password: ")
+	password1 = input("Please confirm password: ")
+	if password1 != password:
+		print("Password doesn't match.")
+		return
+
+	with open('base16384_utf8_chinese_sorted.txt') as file:
+		# Read the contents of the file
+		base16384_str = file.read()
+		assert len(base16384_str) == 16384
+
 	# # example: use password = '1234'
 
 	# print(encrypt_str_to_str64('some string', password))
@@ -16,7 +36,7 @@ def main():
 	# print(decrypt_str16384_to_str('丂變备駧榒揞喿凫崶尻', password))
 
 	# encrypt_folder('test', 'test-encrypted', password)
-	# decrypt_folder('test-encrypted', 'test-decrypted', password)
+	decrypt_folder('test-encrypted', 'test-decrypted', password)
 
 	# encrypt_names_in_folder('Computational_Physics_Course', password)
 	# decrypt_names_in_folder('Computational_Physics_Course', password)
@@ -154,7 +174,7 @@ def decrypt_files_in_folder(directory, out_dir, password):
 # if the name is too long, will name it to 'long-name-xxxx.file_extension'
 	# and append the full name to `dic_file_handle`
 # dic_file_handle = open(dic_path, 'a')
-def encrypt_file_or_folder_name(path, dic_file_handle):
+def encrypt_file_or_folder_name(path, dic_file_handle, password):
 	root = os.path.dirname(path)
 	name = os.path.basename(path)
 	if (name[-len_ext:] == file_extension):
@@ -182,11 +202,11 @@ def encrypt_names_in_folder(directory, password):
 		for name in files:
 			if (name == dic_file):
 				continue
-			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle)
+			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle, password)
 		for name in dirs:
 			if (name[-len_ext:] == file_extension):
 				continue
-			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle)
+			encrypt_file_or_folder_name(os.path.join(root, name), dic_file_handle, password)
 	dic_file_handle.close()
 	if os.path.exists(dic_path) and os.path.getsize(dic_path) == 0:
 		os.remove(dic_path)
@@ -195,7 +215,7 @@ def encrypt_names_in_folder(directory, password):
 # will skip files without `file_extension`
 # if the name is `long-name-xxx.file_extension`,
 	# will get the real encrypted name from `long_names` dictionary
-def decrypt_file_or_folder_name(path, long_names):
+def decrypt_file_or_folder_name(path, long_names, password):
 	root = os.path.dirname(path)
 	name = os.path.basename(path)
 	if (name[-len_ext:] != file_extension):
@@ -229,9 +249,9 @@ def decrypt_names_in_folder(directory, password):
 
 	for root, dirs, files in os.walk(directory, topdown=False):
 		for name in files:
-			decrypt_file_or_folder_name(os.path.join(root, name), long_names)
+			decrypt_file_or_folder_name(os.path.join(root, name), long_names, password)
 		for name in dirs:
-			decrypt_file_or_folder_name(os.path.join(root, name), long_names)
+			decrypt_file_or_folder_name(os.path.join(root, name), long_names, password)
 	# don't delete for debug
 	# if os.path.exists(dic_path):
 		# os.remove(dic_path)
@@ -277,19 +297,6 @@ def strN_to_str64(custom_str, custom_base_chars):
 	num_bytes = num.to_bytes((num.bit_length() + 7) // 8, 'big')
 	# Encode bytes to base64
 	return base64.b64encode(num_bytes).decode()
-
-# ====== password =====
-password = input("Please enter password: ")
-
-# ====== base 16384 ========
-# used to encrypt names so that they are almost certainly shorter than original name
-# code points from 19968 to 39447, sorted but not contiguous
-# taken from Xinhua dictionary, see https://github.com/pwxcoo/chinese-xinhua
-base16384_str = ''
-with open('base16384_utf8_chinese_sorted.txt') as file:
-	# Read the contents of the file
-	base16384_str = file.read()
-	assert len(base16384_str) == 16384
 
 # ====== what to do ======
 main()
